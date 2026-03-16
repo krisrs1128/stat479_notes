@@ -114,7 +114,7 @@ the 1950s).
 
 1. A perceptron is a defined as the transformation,
 \begin{align*}
-x \overrightarrow{f} z \overrightarrow{g} y
+x \xrightarrow{f} z \xrightarrow{g} y
 \end{align*}
 where $f : \reals^D \to \reals$ and $g : \reals \to \reals$ are mappings
 \begin{align}
@@ -129,12 +129,9 @@ particular threshold.
 1. **$D = 2$**. The parameter $w$ defines a direction in $\reals^{2}$. The set
 $\{x: w^\top x = -b\}$ defines the decision boundary between $y = 0$ and $1$. A
 few choices of $w$ and $b$ are shown below.
+   _Exercise. Draw the decision boundary when $w = \left(1 0\right)$ and $b = 1$._
 
-(figures)
-
-_Exercise. Draw the decision boundary when $w = \left(1 0\right)$ and $b = 1$._
-
-_Exercise. TRUE FALSE The decision boundary is parallel with the vector $w^\perp$, the vector perpendicular to $w$._
+   _Exercise. TRUE FALSE The decision boundary is parallel with the vector $w^\perp$, the vector perpendicular to $w$._
 
 1. **$D > 2$**. This logic extends to higher dimensions. The parameter $w$
 defines a direction in $\reals^{D}$. The perceptron classifies $x$ to group 1 if
@@ -142,7 +139,7 @@ $w^\top x > -b$, which geometrically means that $x$ has a ``large enough''
 projection onto the direction defined $w$.
 
 1. The perceptron is parameterized by $w \in \reals^{D}$ and $b \in \reals$.
-Given data \{x_i, y_i}_{i = 1}^{N}, we can learn $w$ and $b$ so that
+Given data $\{x_i, y_i\}_{i = 1}^{N}$, we can learn $w$ and $b$ so that
 $f\left(x_i\right) = y_i$ for as many $i$ as possible. This is accomplished by
 solving an optimization problem,
 \begin{align*}
@@ -161,7 +158,7 @@ boundary. In this case, we can use a variant called a multilayer perceptron (MLP
 1. **$L = 2$ layers.** The simplest MLP has two layers. This includes two vector
 processing steps,
 \begin{align*}
-x \overrightarrow{f_1} z^1 \overrightarrow{g} h^1 \overrightarrow{f_2} z^2 \overrightarrow{g} y
+x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g} y
 \end{align*}
 where $f_l: \reals^{D_{l}} \to \reals^{D_{l + 1}}$ and $g : \reals \to \reals$
 are mappings
@@ -178,16 +175,15 @@ input, not necessarily the original input $x$.
 of $D_{2}$ linear classifiers. The $D_{2}$ classifiers are defined by the rows
 of $W_{1}$. The mixing weights are given by $W_{2}$.
 
-Notice that by increasing $D_{1}$, we can learn more nonlinear decision
+    Notice that by increasing $D_{1}$, we can learn more nonlinear decision
 boundaries between the classes. Each row of the $W_{l}$ is viewed as its own
 neuron, sensitive to a particular direction $w_{dl}$.
 
-_Exercise: TRUE FALSE The dataset visualized below can be classified using a two layer MLP._
+    _Exercise: TRUE FALSE The dataset visualized below can be classified using a two layer MLP._
 
-1. The general MLP can have aribtrarily many layers, and the activation
-functions need not be the same across layers,
+1. The general MLP can have many alternating linear and activation layers,
 \begin{align*}
-x \overrightarrow{f_1} z^1 \overrightarrow{g_1} h^1 \dots \overrightarrow{f_L} z^L \overrightarrow{g_L} y
+x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} \dots \xrightarrow{g} h^{L - 1} \xrightarrow{f_L} z^L \xrightarrow{g} y
 \end{align*}
 
 ## Parameters and Activations
@@ -202,7 +198,7 @@ tensor $x$.  The parameters $\theta$ are learned from an entire dataset $\{x_i,
 y_i\}$ so that the final layer of representations will generally be highly
 predictive of the final tensor $y$.
 
-![Figure from the reading.](figures/params_vs_activations.png)
+    ![Distinction between parameters and activations. Figure from the reading.](figures/params_vs_activations.png){width=70%}
 
 1. By choosing (almost everywhere) differentiable activations $g$, can learn the
 parameters $\theta$ using stochastic gradient descent on an appropriately
@@ -224,7 +220,7 @@ x_{\text{out}} = f\left(x_{\text{in}}; \theta\right) := W x_{\text{in}} + b
 It has parameters $\theta = \{W, b\}$. As mentioned above, each row of $W$ can
 be viewed as its own neuron.
 
-  ![A linear layer can be viewed as a distribution transformer, translating and skewing the inputs according to the parameters $W$ and $b$.](figures/mapping_l2.png)
+    ![A linear layer can be viewed as a distribution transformer, translating and skewing the inputs according to the parameters $W$ and $b$.](figures/mapping_linear.png){width=30%}
 
 1. **Activation Layers**. Activations are nonlinearities that ensure that the
 final neural network output is a nonlinear function of the inputs. They are
@@ -233,27 +229,18 @@ choices of nonlinearity are given below. When they are applied to a tensor, they
 are applied coordinatewise to each element $x_{\texttt{in}}$ and the output has
 the same dimension as the input.
 
-\begin{aligned}
-    x_{\text{out}}[i] &=
-        \begin{cases}
-            1, &\text{if} \quad x_{\text{in}}[i] > 0\\
-            0, & \text{otherwise}
-        \end{cases} & \quad\quad \triangleleft \quad \text{threshold}\\
-    x_{\text{out}}[i] &= \frac{1}{1 + e^{-x_{\text{in}}[i]}} & \quad\quad \triangleleft \quad \text{sigmoid}\\
-    x_{\text{out}}[i] &= 2*\text{sigmoid}(2*x_{\text{in}}[i])-1 & \quad\quad \triangleleft \quad \text{tanh}\\
-    x_{\text{out}}[i] &= \max(x_{\text{in}}[i],0) & \quad\quad \triangleleft \quad \text{relu}\\
-    x_{\text{out}}[i] &=
-        \begin{cases}
-            \max(x_{\text{in}}[i],0), &\text{if} \quad x_{\text{in}}[i] \geq 0\\
-            \alpha\min(x_{\text{in}}[i],0), & \text{otherwise}
-        \end{cases} & \quad\quad \triangleleft \quad \texttt{leaky-relu}
-\end{aligned}
+   \begin{aligned}
+   x_{\text{out}}[d] &= \begin{cases} 1, &\text{if} \quad x_{\text{in}}[d] > 0\\ 0, & \text{otherwise} \end{cases} & \quad\quad \triangleleft \quad \text{threshold}\\
+   x_{\text{out}}[d] &= \frac{1}{1 + e^{-x_{\text{in}}[d]}} & \quad\quad \triangleleft \quad \text{sigmoid}\\
+   x_{\text{out}}[d] &= 2\times \text{sigmoid}(2x_{\text{in}}[d])-1 & \quad\quad \triangleleft \quad \text{tanh}\\
+   x_{\text{out}}[d] &= \max(x_{\text{in}}[d],0) & \quad\quad \triangleleft \quad \text{relu}\\
+   \end{aligned}
 
-![Common nonlinearities, as discussed in reading](figures/pointwise_nonlinearities.png)
+   ![Common nonlinearities, as given in reading.](figures/pointwise_nonlinearities.png)
 
-_Exercise. The visualization below shows how one of the activations above applies to two-dimensional inputs $x_{\text{in}}$. Which activation does it show?_
+   _Exercise. The visualization below shows how one of the activations above applies to two-dimensional inputs $x_{\text{in}}$. Which activation does it show?_
 
-![](figures/mapping_relu.png)
+   ![What nonlinearity is this?](figures/mapping_relu.png){width=30%}
 
 1. **Normalization Layers**. Both linear and activation layers appeared in MLPs.
 A class of layers that appears in almost all modern deep learning techniques,
@@ -261,58 +248,59 @@ but not MLPs, are called normalization layers. These are introduced to stabilize
 training and guide stochastic gradient descent optimization towards better local
 minima of the loss function.
 
-  - Batch Norm. This layer normalizes each coordinate (neuron) of the input activation
-  across the current batch.
-  \begin{aligned}
-    x_{\text{out}}[d] =
-    \gamma
-    \frac{x_{\text{in}}[d] - \mathbb{E}[x_{\text{in}}[d]]}
-         {\sqrt{\text{Var}[x_{\text{in}}[d]]}}
-    + \beta
-  \end{aligned}
-  where $\hat{\mathbb{E}}_{\text{\batch}}$ and
-  $\widehat{\text{Var}}_{\text{batch}}$ refer to the empirical mean and variance
-  of each coordinate across the current batch.
+    - **Batch Norm**. This layer normalizes each coordinate (neuron) of the input activation across the current batch. Given a batch of $B$ inputs, for each coordinate $d$:
+    $$\mu_d = \frac{1}{B} \sum_{b=1}^{B} x_{\text{in}}^{(b)}[d], \qquad \sigma_d^2 = \frac{1}{B} \sum_{b=1}^{B} \left(x_{\text{in}}^{(b)}[d] - \mu_d\right)^2$$
+     $$x_{\text{out}}^{(b)}[d] = \gamma \frac{x_{\text{in}}^{(b)}[d] - \mu_d}{\sigma_d} + \beta$$
+    The tensor dimension $D_{\text{in}}$ remain unchanged after normalization.
+    The free parameters $\gamma \in \reals$ and $\beta \in D_{\text{in}}$ allow
+    each neuron to have its mean and variance, which controls the frequency and
+    magnitude of the downstream activations.
+    - **$l^2$ normalization**. This normalizes each input $x_{\text{in}}$ to
+    unit $l^2$ norm,
+    \begin{aligned}
+    x_{\text{out}}[d] = \frac{x_{\text{in}}[d]}{\sqrt{\sum_{d' = 1}^{D} x^{2}_{\text{in}[d']}}}
+    \end{aligned}
+    This has the advantage of being transferable to models with arbitrary batch
+    sizes. In contrast, the $\beta, \gamma$ parameters learned in Batch Norm are
+    tied to the particular batch sized used when training the model.
 
-  The tensor dimension $D_{\text{in}}$ remain unchanged after normalization. The
-  free parameters $\gamma \in \reals$ and $\beta \in \text{D_{in}}$ allow each
-  neuron to have its mean and variance, which controls the frequency and
-  magnitude of the downstream activations.
-  - **Layer Norm**. This layer normalizes each input $x_{\text{in}}$ across all
-  its neurons,
-  \begin{aligned}
-  \mu &= \frac{1}{D} \sum_{d=1}^D x_{\text{in}}[d]\\
-  \sigma^2 &= \frac{1}{n} \sum_{i=1}^n \left(x_{\text{in}}[d] - \mu\right)^2\\
-   x_{\text{out}}[d] &= \gamma \frac{x_{\text{in}}[d] - \mu}{\sigma} + \beta
-  \end{aligned}
-  This has the advantage of being transferable to models with arbitrary batch
-  sizes. In contrast, the $\beta, \gamma$ parameters learned in Batch Norm are
-  tied to the particular batch sized used when training the model.
+    ![The effect of $l^2$ normalization on the input tensor's data distribution.](figures/mapping_l2.png){width=30%}
 
-  ![Batch vs. Layer Norm, visualized in the reading.](figures/batchnorm_vs_layernorm_diagram.png)
+    - **Layer Norm**. This layer normalizes each input $x_{\text{in}}$ across all
+    its neurons,
+    \begin{aligned}
+    \mu &= \frac{1}{D} \sum_{d=1}^D x_{\text{in}}[d]\\
+    \sigma^2 &= \frac{1}{n} \sum_{i=1}^n \left(x_{\text{in}}[d] - \mu\right)^2\\
+    x_{\text{out}}[d] &= \gamma \frac{x_{\text{in}}[d] - \mu}{\sigma} + \beta
+    \end{aligned}
+    This is like $l^2$ normalization but also centers the data. One issue with
+    batch normalization is that introduces subtle dependence between samples in
+    the same batch via the normalization statistics $\mu$ and $\sigma$ -- both
+    $l^2$ and LayerNorm avoid this and truly process the data independently.
 
-  -
+    ![Batch vs. Layer Norm, visualized in the reading.](figures/batchnorm_vs_layernorm_diagram.png){width=60%}
 
-  ![](figures/mapping_l2.png)
 
 1. **Output Layers**. These layers are used to transform the internal
 representations $h^l$ to a form that can be used to predict $y$.
 
-  - Softmax Layer. This is used in classification tasks. It transforms an
-  activation to the a probability distribution over $K$ classes. This distribution can be used either for prediction (e.g., most likely class $\to$ image label) or sampling (e.g., sample next word using that distribution)
-  \begin{aligned}
+    - Softmax Layer. This is used in classification tasks. It transforms an
+    activation to the a probability distribution over $K$ classes. This
+    distribution can be used either for prediction (e.g., most likely class
+    $\to$ image label) or sampling (e.g., sample next word using that
+    distribution)
+    \begin{aligned}
       x_{\text{out}}[d] &= \frac{e^{-\tau x_{\text{in}}[d]}}
         {\sum_{k=1}^K e^{-\tau x_{\text{in}}[k]}}
-  \end{aligned}
-  Higher values of the _temperature_ parameter $\tau$ ``flattens'' the
-  distribution across the $K$ classes, which is helpful for sampling more
-  diverse outputs.
-  - Image Prediction Layer. In image generation tasks, we rescale a tensor to
-  the range $\left[0, 255\right]$ which is the range of pixel values that
-  typical RGB images take.
-  \begin{aligned}
+    \end{aligned}
+    Higher values of the _temperature_ parameter $\tau$ flatten the distribution
+    across the $K$ classes, which is helpful for sampling more diverse outputs.
+    - Image Prediction Layer. In image generation tasks, we rescale a tensor to
+    the range $\left[0, 255\right]$ which is the range of pixel values that
+    typical RGB images take.
+    \begin{aligned}
       x_{\text{out}}[d] &= 255*\text{sigmoid}(x_{\text{in}}[d])
-  \end{aligned}
+    \end{aligned}
 
 1. There are many other layers that are widely used, like convolutional, gated
 recurrent unit, and transformer layers. They can be used to encode specific
@@ -326,31 +314,31 @@ into deep learning architectures.
 
 1. The reading lists five reasons why deep learning architectures have been so successful:
 
-> They are high capacity (big enough nets are universal approximators).
-> They are differentiable (the parameters can be optimized via gradient descent).
-> They have good inductive biases (neural architectures reflect real structure in the world).
-> They run efficiently on parallel hardware.
-> They build abstractions.
+    > a. They are high capacity (big enough nets are universal approximators).
+    > b. They are differentiable (the parameters can be optimized via gradient descent).
+    > c. They have good inductive biases (neural architectures reflect real structure in the world).
+    > d. They run efficiently on parallel hardware.
+    > e. They build abstractions.
 
 1. The first reason also makes them difficult to interpret. Simply by reading
 off the parameters $\theta$, it's not at all clear how it will treat a new input
 $x$ without running the entire computation.
 
-1. The last reason gives a key hint towards explaining AI models. Each layer
+1. $^\dagger$ The last reason gives a key hint towards explaining AI models. Each layer
 processes the previous inputs to arrive at a final representation $h^{L}$ where
 $y$'s prediction is straightforward. For example, in the toy problem below, it
 transforms nonlinear classification in the input space $x$ into linear
 classification in the representation space $h^L$.
 
-![Learned representations transform data distributions so that classes are easily separated.](figures/nn_training_viz.png)
+    ![Learned representations transform data distributions so that classes are easily separated.](figures/nn_training_viz.png)
 
-1. It turns out that, more than simply making the final objective easier, deeper
+1. $^\dagger$ It turns out that, more than simply making the final objective easier, deeper
 layers learn more and more abstract features of the input. This is remarkable
 because, traditionally, those abstract features would have been extracted by
 hand (e.g., this was the basis for the SIFT algorithm in computer vision
 @Lowe1999). We'll spend several weeks trying to understand in exactly what sense
 deep models can learn abstract representations.
 
-![Deeper layers learn more abstract representations of the input data. Figure from @Bengio2009.](figures/yoshua_bengio_representations.png)
+    ![Deeper layers learn more abstract representations of the input data. Figure from @Bengio2009.](figures/yoshua_bengio_representations.png){width=40%}
 
 ## Code Example
