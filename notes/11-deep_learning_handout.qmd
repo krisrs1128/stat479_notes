@@ -224,6 +224,8 @@ x_{\text{out}} = f\left(x_{\text{in}}; \theta\right) := W x_{\text{in}} + b
 It has parameters $\theta = \{W, b\}$. As mentioned above, each row of $W$ can
 be viewed as its own neuron.
 
+  ![A linear layer can be viewed as a distribution transformer, translating and skewing the inputs according to the parameters $W$ and $b$.](figures/mapping_l2.png)
+
 1. **Activation Layers**. Activations are nonlinearities that ensure that the
 final neural network output is a nonlinear function of the inputs. They are
 necessary because any composition of linear functions is still linear.  Common
@@ -249,6 +251,10 @@ the same dimension as the input.
 
 ![Common nonlinearities, as discussed in reading](figures/pointwise_nonlinearities.png)
 
+_Exercise. The visualization below shows how one of the activations above applies to two-dimensional inputs $x_{\text{in}}$. Which activation does it show?_
+
+![](figures/mapping_relu.png)
+
 1. **Normalization Layers**. Both linear and activation layers appeared in MLPs.
 A class of layers that appears in almost all modern deep learning techniques,
 but not MLPs, are called normalization layers. These are introduced to stabilize
@@ -257,22 +263,94 @@ minima of the loss function.
 
   - Batch Norm. This layer normalizes each coordinate (neuron) of the input activation
   across the current batch.
-  $$x_{\text{out}} = \gamma \frac{x_{\text{out}} - \mathbb{E}_{\text{batch}}[x_{\text{in}}]}{\sqrt{\text{Var}_{\text{batch}}[z]}} + \beta$$
-  The parameters $\gamma$ and $\beta$ allow each
-  - Layer Norm.
+  \begin{aligned}
+    x_{\text{out}}[d] =
+    \gamma
+    \frac{x_{\text{in}}[d] - \mathbb{E}[x_{\text{in}}[d]]}
+         {\sqrt{\text{Var}[x_{\text{in}}[d]]}}
+    + \beta
+  \end{aligned}
+  where $\hat{\mathbb{E}}_{\text{\batch}}$ and
+  $\widehat{\text{Var}}_{\text{batch}}$ refer to the empirical mean and variance
+  of each coordinate across the current batch.
 
-**LayerNorm**: Normalize over feature dimension
-$$\hat{z} = \frac{z - \mathbb{E}_{\text{features}}[z]}{\sqrt{\text{Var}_{\text{features}}[z]}}$$
+  The tensor dimension $D_{\text{in}}$ remain unchanged after normalization. The
+  free parameters $\gamma \in \reals$ and $\beta \in \text{D_{in}}$ allow each
+  neuron to have its mean and variance, which controls the frequency and
+  magnitude of the downstream activations.
+  - **Layer Norm**. This layer normalizes each input $x_{\text{in}}$ across all
+  its neurons,
+  \begin{aligned}
+  \mu &= \frac{1}{D} \sum_{d=1}^D x_{\text{in}}[d]\\
+  \sigma^2 &= \frac{1}{n} \sum_{i=1}^n \left(x_{\text{in}}[d] - \mu\right)^2\\
+   x_{\text{out}}[d] &= \gamma \frac{x_{\text{in}}[d] - \mu}{\sigma} + \beta
+  \end{aligned}
+  This has the advantage of being transferable to models with arbitrary batch
+  sizes. In contrast, the $\beta, \gamma$ parameters learned in Batch Norm are
+  tied to the particular batch sized used when training the model.
 
-1. **Output Layers**
+  ![Batch vs. Layer Norm, visualized in the reading.](figures/batchnorm_vs_layernorm_diagram.png)
 
-1. There are many other layers that are widely used. They can be used to encode
-specific inductive biases (e.g., convolutional networks mimic human vision). The
-key point is that they can be mixed and matched like lego blocks. As long as a
-layer inputs and outputs a tensor, and as long as it is differentiable with
-respect to its learnable parameters, then it can be easily incorporated into
-deep learning architectures.
+  -
+
+  ![](figures/mapping_l2.png)
+
+1. **Output Layers**. These layers are used to transform the internal
+representations $h^l$ to a form that can be used to predict $y$.
+
+  - Softmax Layer. This is used in classification tasks. It transforms an
+  activation to the a probability distribution over $K$ classes. This distribution can be used either for prediction (e.g., most likely class $\to$ image label) or sampling (e.g., sample next word using that distribution)
+  \begin{aligned}
+      x_{\text{out}}[d] &= \frac{e^{-\tau x_{\text{in}}[d]}}
+        {\sum_{k=1}^K e^{-\tau x_{\text{in}}[k]}}
+  \end{aligned}
+  Higher values of the _temperature_ parameter $\tau$ ``flattens'' the
+  distribution across the $K$ classes, which is helpful for sampling more
+  diverse outputs.
+  - Image Prediction Layer. In image generation tasks, we rescale a tensor to
+  the range $\left[0, 255\right]$ which is the range of pixel values that
+  typical RGB images take.
+  \begin{aligned}
+      x_{\text{out}}[d] &= 255*\text{sigmoid}(x_{\text{in}}[d])
+  \end{aligned}
+
+1. There are many other layers that are widely used, like convolutional, gated
+recurrent unit, and transformer layers. They can be used to encode specific
+inductive biases (e.g., convolutional layers mimic the human visual system). The
+key point is that these layers can be mixed and matched like lego blocks. As
+long as a layer inputs and outputs a tensor, and as long as it is differentiable
+with respect to its learnable parameters, then it can be easily incorporated
+into deep learning architectures.
 
 ## Learning Representations
+
+1. The reading lists five reasons why deep learning architectures have been so successful:
+
+> They are high capacity (big enough nets are universal approximators).
+> They are differentiable (the parameters can be optimized via gradient descent).
+> They have good inductive biases (neural architectures reflect real structure in the world).
+> They run efficiently on parallel hardware.
+> They build abstractions.
+
+1. The first reason also makes them difficult to interpret. Simply by reading
+off the parameters $\theta$, it's not at all clear how it will treat a new input
+$x$ without running the entire computation.
+
+1. The last reason gives a key hint towards explaining AI models. Each layer
+processes the previous inputs to arrive at a final representation $h^{L}$ where
+$y$'s prediction is straightforward. For example, in the toy problem below, it
+transforms nonlinear classification in the input space $x$ into linear
+classification in the representation space $h^L$.
+
+![Learned representations transform data distributions so that classes are easily separated.](figures/nn_training_viz.png)
+
+1. It turns out that, more than simply making the final objective easier, deeper
+layers learn more and more abstract features of the input. This is remarkable
+because, traditionally, those abstract features would have been extracted by
+hand (e.g., this was the basis for the SIFT algorithm in computer vision
+@Lowe1999). We'll spend several weeks trying to understand in exactly what sense
+deep models can learn abstract representations.
+
+![Deeper layers learn more abstract representations of the input data. Figure from @Bengio2009.](figures/yoshua_bengio_representations.png)
 
 ## Code Example
