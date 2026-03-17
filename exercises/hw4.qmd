@@ -68,24 +68,22 @@ b. **Model Training**. Train a model that is not intrinsically interpretable,
 like tree ensembles or deep learning (for other choices, please contact
 instructors).
 
-    (i) How did you tune model hyperparameters? If using cross-validation, ensure there is no data leakage (e.g., the same person should not appear in both in training and test folds).
+    (i) Describe: 1. the model class you used; 2. the main hyperparameters of the model; 3. how hyperparameters were selected (e.g., cross-validation, grid search, manual tuning).
     (ii)  What is the out-of-sample prediction accuracy?
 
 c. **Explanation 1.** Apply one of the following methods: CP profiles, model-based SHAP, or model-agnostic SHAP.
 
     (i) Does your method support local explanations, global explanations or both?
     (ii) On what scale is the explanation output? For classification, distinguish between attributions on probability vs. log-odds scales.
-    (iii) Create substantive visualizations based on your explanation, and summarize their main takeaways. For example, if your method supports local explanations, do not simply show population level summaries. If explaining a few selected samples, explain why you selected them (e.g., they are representative or are instructive failure modes).
+    (iii) Create **at least two visualizations** derived from the explanation method. For each visualization: 1. describe what is shown; 2. explain **one substantive insight** about the model or dataset.
     (iv) What is one way your output could be misread, and how would you correct it?
 
-d. **Explanation 2.** Repeat part (c) for one other method. If you chose a
-model-agnostic SHAP method, you may choose a different model-agnostic SHAP
-method here.
+d. **Explanation 2.** Repeat part (c) for one other method. If you chose a model-agnostic SHAP method, you may choose a different model-agnostic SHAP method here.
 
-e. **Method Description** Describe one of your two methods as if it were for a company/lab-wide report. What is one strength and one limitation? Your explanation should be accessible without an extensive background in statistics.
+e. **Method Description** Describe one of your two methods as if it were for a company/lab-wide report. Your explanation should describe the basic idea of the method in accessible language and explain what the method’s outputs represent.
 
 f. **Checks**.
 
-    (i) Check the correlation structure of your predictors. How do the results how you interpret any of your outputs? Do your selected methods risk extrapolation? Do they risk assigning nonzero attributions to irrelevant features?
+    (i) Check the correlation structure of your predictors. How do the results affect how you interpret any of your outputs? Do your selected methods risk extrapolation? Do they risk assigning nonzero attributions to irrelevant features?
     (ii) Does your explanation method have any hyperparameters? What do those hyperparameters control? Test the sensitivity of one of your outputs to a change in one of your hyperparameters.
-    (iii) How do the outputs from the two explanation methods compare and contrast?
+    (iii) How do the outputs from the two explanation methods compare and contrast? For example, discuss whether they highlight similar important features.

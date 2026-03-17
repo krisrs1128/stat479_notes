@@ -57,288 +57,273 @@ set.seed(2026)
 _Readings: [1](https://visionbook.mit.edu/neural_nets.html) (sections 12.1 - 12.7, but skip 12.5.2 - 12.5.3), [2](https://docs.pytorch.org/tutorials/beginner/basics/intro.html#learn-the-basics) (optional)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/11-deep_learning_overview.qmd)_
 
 Items marked $^{\dagger}$ are not in the required reading and will not be
-tested.  The required reading covers some methods beyond this handout, those
-also won't be tested.
+tested.
 
 ## Setup
 
-**Goal.** Given data $\{\left({x_i, y_i}\right)\}_{i = 1}^{N}$, develop a predictor $f$ for $y_{i}$.
+**Goal.** Given examples $\{\left({x_i, y_i}\right)\}_{i = 1}^{N}$, learn a
+*predictor $f : x \mapsto y$. In fact, the ultimate goal is more ambitious -- we
+*want a _generic recipe_ for automatically learning predictors automatically,
+*regardless of whether the inputs are tables, images, sentences, ...
 
-  - More importantly, create a generic recipe for learning predictors $f$ that works as soon as we have enough examples $x_i$ and $y_i$, with as little manual effort as possible.
+**Requirements.** The recipe must,
 
-**Requirements.**
-
-- The recipe should apply to a variety of data structures out-of-the-box. See the table below.
-- The method must handle highly nonlinear relationships.
-- The method must scale to very large $N$.
+- Apply out-of-the-box to heterogeneous input/output structures (see table).
+- Handle highly nonlinear relationships.
+- Scale to large $N$.
 
 | Task | $x_i$ | $y_i$ | Example |
 |---|---|---| --- | --- |
 | Image Classification | image | label | |
-| Object Detection | image | label and bounding box | |
+| Object Detection | image | label + bounding box | |
 | Language Modeling | sequence of words | next word | |
 | Sentence Translation | sequence of words | sequence of words | |
 | Style Transfer | image | new image | |
 
-
-**Approach.** We represent data as generic $D$-dimensional tensors and define parameterized modules $f_l(\cdot; \theta_l)$ that process them. Composing these modules creates architectures whose intermediate representations $h_l$ link the inputs $x$ with outputs $y$. Parameters $\theta_l$ are fit by optimizing a loss function.
+**Approach.** We represent data as $D$-dimensional tensors. Define parameterized
+modules $f_l(\cdot; \theta_l)$  and compose them into architectures $f = f_{L}
+\circ \dots \circ f_{1}$. Intermediate representations $h_l$ bridge input $x$
+*with output $y$. Fit $\theta_l$ by minimizing a loss function.
 
 ## Tensor Data Structures
 
-1. To represent very general types of data, we rely on $D$-dimensional tensors
-(multidimensional arrays).  Vectors and matrices are special 1 and 2D cases of
-tensors. Classes $y_i \{1, \dots, K\}$ can be viewed as one-hot encoded vectors.
-Therefore, deep learning immediately applies to the data considered in more
-traditional statistics problems.
+1. We can often represent data as $D$-dimensional tensors (multidimensional
+arrays). Vectors and matrices are the $D = 1$ and $D = 2$ cases.
 
-1. Images and video can be viwed as 3 and 4D tensors, respectively. An RGB image
-has dimensions Height $\times$ Width $\times$ Color Channel. A video adds an
-extra Time dimension.
+1. This works across many problem contexts. E.g., class labels $y_i \{1, \dots,
+K\}$ become one-hot encoded vectors, so tensors capture standard statistics
+problems. RGB images are 3D tensors (Height $\times$ Width $\times$ Color
+Channel), and video adds a Time axis, so their tensors are 4D. A document is a
+Vocabulary $\times$ Document tensor where each word is one-hot encoded. Though,
+document lengths vary, so a dataset contains tensors of differnet sizes.
 
-1. A document can be viewed as a one-hot encoded tensor with dimensions Vocabulary Size $\times$ Document Length. Notice that since documents can have different lengths, a typical dataset will include many tensors with different sizes.
-
-1. We can stack tensors into "batches" of data points $x_i$. Often, these will
-themselves form tensors. For example, a batch of 10 RGB images, each of which is
-16 pixels tall and wide, can be written as a $10 \times 16 \times 16 \times 3$
-tensor. This property is helpful for accelerating computation. Since GPUs can
-perform tensor arithmetic in parallel, we'll be able to optimize over entire
-batches very efficiently.
+1. We can stack a "batch" of $n$ tensors into a single tensor. For example, 10
+RGB images of size $16 \times 16 \times 3$ can be written as a $10 \times 16
+\times 16 \times 3$ tensor. This is helpful because GPUs perform tensor
+arithmetic in parallel, so batching lets us optimize over many examples at once.
 
 ## Perceptrons
 
-1. We'll eventually want flexible modules for mapping tensors from input to
-output. Optimizing over those modules will allow us to achieve our prediction
-objective.  But for now, let's consider how to map a vecor $x \in \reals^{D}$ to
-a binary label $y \in \{0, 1\}$ using the perceptron algorithm (introduced in
-the 1950s).
+1. We want a general recipe for mapping tensors to predictions. This recipe will
+be made from composable modules. We start with the simplest case: mapping a
+vecor $x \in \reals^D$ to a binary label $y \in \{0, 1\}$ using the perceptron (@Rosenblatt1958).
 
-1. A perceptron is a defined as the transformation,
+1. **Definition.** A perceptron combines two transformations:
 \begin{align*}
 x \xrightarrow{f} z \xrightarrow{g} y
 \end{align*}
-where $f : \reals^D \to \reals$ and $g : \reals \to \reals$ are mappings
+where
 \begin{align}
 f\left(x\right) &= w^\top x + b \space (\text{linear layer})\\
-g\left(z\right) &= \indic{z > 0} \space (\text{activation function}).
+g\left(z\right) &= \indic{z > 0} \space (\text{activation}).
 \end{align}
-This can be viewed as a classifier that $x$ into classes 0 and 1.
-Alternatively, it can be seen as a theoretical model of a neuron which computes
-a linear combination of inputs and ``activates'' if that combination exceeds a
-particular threshold.
+In other words, take a linear combination of inputs and threshold. The result is
+a binary classifier. Historically, this was viewed as a model of a neuron that
+"fires" when its inputs reach a threshold.
 
-1. **$D = 2$**. The parameter $w$ defines a direction in $\reals^{2}$. The set
-$\{x: w^\top x = -b\}$ defines the decision boundary between $y = 0$ and $1$. A
+1. **$D = 2$**. The vector $w$ defines a direction in $\reals^{2}$. The set
+$\{x: w^\top x = -b\}$ is the decision boundary between classes. Changing
+$w$ rotates the boundary and changing $b$ translates it.
 few choices of $w$ and $b$ are shown below.
-   _Exercise. Draw the decision boundary when $w = \left(1 0\right)$ and $b = 1$._
 
-   _Exercise. TRUE FALSE The decision boundary is parallel with the vector $w^\perp$, the vector perpendicular to $w$._
+   _Exercise. Draw the decision boundary when $w = \begin{bmatrix}1 & 0\end{bmatrix}$ and $b = 1$._
 
-1. **$D > 2$**. This logic extends to higher dimensions. The parameter $w$
-defines a direction in $\reals^{D}$. The perceptron classifies $x$ to group 1 if
-$w^\top x > -b$, which geometrically means that $x$ has a ``large enough''
-projection onto the direction defined $w$.
+   _Exercise. TRUE FALSE The decision boundary is parallel to $w^\perp$, the vector perpendicular to $w$._
 
-1. The perceptron is parameterized by $w \in \reals^{D}$ and $b \in \reals$.
-Given data $\{x_i, y_i\}_{i = 1}^{N}$, we can learn $w$ and $b$ so that
-$f\left(x_i\right) = y_i$ for as many $i$ as possible. This is accomplished by
-solving an optimization problem,
+1. **$D > 2$**. This logic holds in higher dimensions. The perceptron assigns $y
+= 1$ whenever $x$ has a large enough projection onto $w$, i.e., $w^\top x > -b$.
+The decision boundary is now a $D - 1$-dimensional hyperplane.
+
+1. Given $\{x_i, y_i\}_{i = 1}^{N}$, we learn $w$ and $b$ by solving,
 \begin{align*}
 \hat{w}, \hat{b} &= \arg \min_{w \in \reals^{D}, b \in \reals} \frac{1}{N}\sum_{i = 1}^{N}L\left(w^\top x_i + b, y_i\right).
 \end{align*}
-In the original perceptron paper, $L\left(\hat{y}, y\right) := \indic{\hat{y} =
-y}$. In general, this is a challenging loss to optimize. It's more common now to
-use smooth surrogates, like the cross-entropy loss, because these are amenable
-to general purpose stochastic gradient descent algorithmics.
+@Rosenblatt1958 used $L\left(\hat{y}, y\right) := \indic{\hat{y} \neq y}$, a
+nonconvex 0-1 loss which is hard to optimize. Modern approaches replace this
+loss with smooth surrogates, like cross-entropy, which are amenable to
+gradient-based optimization.
 
 ## Multilayer Networks
 
-1. The perceptron does not work well if the data are separated by a nonlinear
-boundary. In this case, we can use a variant called a multilayer perceptron (MLP).
+1. The perceptron can only draw linear boundaries. To handle nonlinear
+classification, we compose multiple layers, giving the multilayer perceptron
+(MLP).
 
-1. **$L = 2$ layers.** The simplest MLP has two layers. This includes two vector
-processing steps,
+1. **Two Layers ($L = 2$).** The simplest MLP alternates linear maps with nonlinear
+activations,
 \begin{align*}
-x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g} y
+x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g} \hat{y}
 \end{align*}
-where $f_l: \reals^{D_{l}} \to \reals^{D_{l + 1}}$ and $g : \reals \to \reals$
+where each linear layer is,
 are mappings
 \begin{align}
-f_{l}\left(x\right) &= W_{l}x + b_{l} \space (\text{layer } l \text{ weights and biases})\\
+f_{l}\left(v\right) &= W_{l}v + b_{l} \space (\text{layer } l \text{ weights and biases})\\
 \end{align}
 where $W_{l} \in \reals^{D_{l + 1} \times D_{l}}$, $b_{l} \in \reals^{D_{l +
-1}}$ and $g$ a nonlinear activation function (it could be the threshold
-activation defined above, or other activation layers described below). We have
-written $f_{l}(x)$ above, but the function applies to any $D_{l}$-dimensional
-input, not necessarily the original input $x$.
+1}}$ and $g$ is a nonlinear activation function applied elementwise (the
+threshold from before or alternatives defined later). Note that the argument is
+a generic $v \in \reals^{D_{l}}$. At the first layer, this is $x$, but at deeper
+layers, it is the current hidden representation $h^{l - 1}$.
 
-1. **$L = 2, D_{1} = 2$ case**. The final prediction can be viewed as a mixture
-of $D_{2}$ linear classifiers. The $D_{2}$ classifiers are defined by the rows
-of $W_{1}$. The mixing weights are given by $W_{2}$.
+1. **Geometric interpretation ($L = 2, D_{1} = 2)$**. Each row of $W_1$ defines
+a linear classifier in the input space $x$. The second layer $W_2$ mixes these
+classifiers. This allows for piecewise linear decision boundaries, which are
+more flexible than the ordinary perceptron. Increasing $D_2$ (the number of rows
+of $W_1$) adds more classifiers to the mixture, allowing more complex
+boundaries.
 
-    Notice that by increasing $D_{1}$, we can learn more nonlinear decision
-boundaries between the classes. Each row of the $W_{l}$ is viewed as its own
-neuron, sensitive to a particular direction $w_{dl}$.
+    _Exercise: TRUE FALSE The dataset visualized below can be classified by a two layer MLP._
 
-    _Exercise: TRUE FALSE The dataset visualized below can be classified using a two layer MLP._
-
-1. The general MLP can have many alternating linear and activation layers,
+1. **Deeper models**. The $L$-layer MLP repeats the pattern,
 \begin{align*}
-x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} \dots \xrightarrow{g} h^{L - 1} \xrightarrow{f_L} z^L \xrightarrow{g} y
+x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} \dots \xrightarrow{g} h^{L - 1} \xrightarrow{\text{output layer}} \hat{y}
 \end{align*}
+so that we can continue mixing increasingly complex classifiers.
 
 ## Parameters and Activations
 
-1. We refer to $z^l$ and $ h^l$ as ``activations'' and $\theta = \{W_{l},
-b_{l}\}_{l = 1}^{L}$ as ``parameters.'' We further distinguish between
-_pre_activations $z^l$ and _post_activations $h^l$, depending on their position
-relative to the activation function.
+1. There are two types of quantities involved with a deep learning model, and they each play a different role in learning and prediction.
 
-1. The activations are intermediate tensor representations of a single input
-tensor $x$.  The parameters $\theta$ are learned from an entire dataset $\{x_i,
-y_i\}$ so that the final layer of representations will generally be highly
-predictive of the final tensor $y$.
+  - **Parameters** $\theta = \{W_l, b_l\}_{l = 1}^{L}$ are learned from the full
+  data $\{x_i, y_i\}$. They are shared across all inputs.
+  - **Activations** are intermediate representations of a singel input $x$ as it
+  travels through the network. We distinguish _pre_activations $z^l =
+  f^l\left(h^{l - 1}\right)$ from _post_activations $h^l = g(z^l)$ depending on
+  whether the nonlinearity $g$ has been applied.
+
+  Training adjusts $\theta$ so that the final representations $h^{L - 1}$ are
+  predictive of $y$.
 
     ![Distinction between parameters and activations. Figure from the reading.](figures/params_vs_activations.png){width=70%}
 
-1. By choosing (almost everywhere) differentiable activations $g$, can learn the
-parameters $\theta$ using stochastic gradient descent on an appropriately
-defined loss function. This works because our networks are the composition of
-(nearly) smooth functions, and their composition remains (nearly) smooth.
+1. If $g$ is differentiable (almost everywhere), the entire network $f = f_{L}
+\circ g \circ \dots \circ g \circ f_{1}$ is a composition of nearly smooth
+smooth functions. The result remains nearly smooth, meaning we can compute
+$\nabla_{\theta} L$ and minimize the loss using stochastic gradient descent.
 
 ## Types of Layers
 
-1. We originally set out to define tensor processing modules that could be
-composed to support complex prediction tasks. MLPs already illustrate how
-composition can create powerful classifiers out of simple components. We'll next
-build up our collection of modules that could be applied in real deep learning
-problem solving tasks.
+1. We originally set out to build composable tensor processing modules. The MLP
+illustrates the principle. We next catalog modules used in practice.
 
-1. **Linear Layers**. A linear layer has the form
-\begin{align*}
-x_{\text{out}} = f\left(x_{\text{in}}; \theta\right) := W x_{\text{in}} + b
-\end{align*}
-It has parameters $\theta = \{W, b\}$. As mentioned above, each row of $W$ can
-be viewed as its own neuron.
+1. **Linear layers**. The map $x_{\text{out}} = f\left(x_{\text{in}};
+\theta\right) := W x_{\text{in}} + b$, which has parameters $\theta = \{W, b\}$.
+Each row of $W$ acts as a single neuron, activating on a subset of the input
+space.
 
-    ![A linear layer can be viewed as a distribution transformer, translating and skewing the inputs according to the parameters $W$ and $b$.](figures/mapping_linear.png){width=30%}
+    ![A linear layer translates and skews the input distribution according to $W$ and $b$.](figures/mapping_linear.png){width=30%}
 
-1. **Activation Layers**. Activations are nonlinearities that ensure that the
-final neural network output is a nonlinear function of the inputs. They are
-necessary because any composition of linear functions is still linear.  Common
-choices of nonlinearity are given below. When they are applied to a tensor, they
-are applied coordinatewise to each element $x_{\texttt{in}}$ and the output has
-the same dimension as the input.
+1. **Activation layers**. Activations are nonlinearities that ensure that deep
+network can represent many types of functions. The composition of linear layers
+is still linear, so without these activations, even a deep composition would
+collapse to a single linear map.
+Common choices are given below, note they are applied elementwise,
 
    \begin{aligned}
    x_{\text{out}}[d] &= \begin{cases} 1, &\text{if} \quad x_{\text{in}}[d] > 0\\ 0, & \text{otherwise} \end{cases} & \quad\quad \triangleleft \quad \text{threshold}\\
    x_{\text{out}}[d] &= \frac{1}{1 + e^{-x_{\text{in}}[d]}} & \quad\quad \triangleleft \quad \text{sigmoid}\\
    x_{\text{out}}[d] &= 2\times \text{sigmoid}(2x_{\text{in}}[d])-1 & \quad\quad \triangleleft \quad \text{tanh}\\
-   x_{\text{out}}[d] &= \max(x_{\text{in}}[d],0) & \quad\quad \triangleleft \quad \text{relu}\\
+   x_{\text{out}}[d] &= \max(x_{\text{in}}[d],0) & \quad\quad \triangleleft \quad \text{ReLu}\\
    \end{aligned}
 
    ![Common nonlinearities, as given in reading.](figures/pointwise_nonlinearities.png)
 
-   _Exercise. The visualization below shows how one of the activations above applies to two-dimensional inputs $x_{\text{in}}$. Which activation does it show?_
+   _Exercise. The visualization below applies one of these activations to 2D inputs $x_{\text{in}}$. Which one?_
 
    ![What nonlinearity is this?](figures/mapping_relu.png){width=30%}
 
-1. **Normalization Layers**. Both linear and activation layers appeared in MLPs.
-A class of layers that appears in almost all modern deep learning techniques,
-but not MLPs, are called normalization layers. These are introduced to stabilize
-training and guide stochastic gradient descent optimization towards better local
-minima of the loss function.
+1. **Normalization Layers**. These do not appear in classical MLPs but are
+common in modern architectures. Their role is to stabilize training dynamics and
+improve the loss landscape for stochastic gradient descent.
 
-    - **Batch Norm**. This layer normalizes each coordinate (neuron) of the input activation across the current batch. Given a batch of $B$ inputs, for each coordinate $d$:
+    - **Batch Normalization**. Normalize each coordinate $d$ across a batch of $B$ inputs,
     $$\mu_d = \frac{1}{B} \sum_{b=1}^{B} x_{\text{in}}^{(b)}[d], \qquad \sigma_d^2 = \frac{1}{B} \sum_{b=1}^{B} \left(x_{\text{in}}^{(b)}[d] - \mu_d\right)^2$$
      $$x_{\text{out}}^{(b)}[d] = \gamma \frac{x_{\text{in}}^{(b)}[d] - \mu_d}{\sigma_d} + \beta$$
     The tensor dimension $D_{\text{in}}$ remain unchanged after normalization.
-    The free parameters $\gamma \in \reals$ and $\beta \in D_{\text{in}}$ allow
-    each neuron to have its mean and variance, which controls the frequency and
-    magnitude of the downstream activations.
-    - **$l^2$ normalization**. This normalizes each input $x_{\text{in}}$ to
-    unit $l^2$ norm,
+    The learnable parameters $\gamma \in \reals, \beta \in D_{\text{in}}$ let
+    each neuron have its own scale and shift, which controls the magnitude and
+    frequency of the later activations. Note that $\mu_d$ and $\sigma_d$ couple
+    samples within a batch, creating a subtle dependence.
+    - **$\ell^2$ normalization**. Project each input onto the
+    $\ell^2$ unit sphere,
     \begin{aligned}
     x_{\text{out}}[d] = \frac{x_{\text{in}}[d]}{\sqrt{\sum_{d' = 1}^{D} x^{2}_{\text{in}[d']}}}
     \end{aligned}
-    This has the advantage of being transferable to models with arbitrary batch
-    sizes. In contrast, the $\beta, \gamma$ parameters learned in Batch Norm are
-    tied to the particular batch sized used when training the model.
+    This has no learnable parameters and no batch dependence.
 
-    ![The effect of $l^2$ normalization on the input tensor's data distribution.](figures/mapping_l2.png){width=30%}
+    ![The effect of $\ell^2$ normalization on the input tensor's data distribution.](figures/mapping_l2.png){width=30%}
 
-    - **Layer Norm**. This layer normalizes each input $x_{\text{in}}$ across all
+    - **Layer Norm**. Like $\ell^2$ normalization, but both centers scales the $D$ coordinates of a single input,
     its neurons,
     \begin{aligned}
     \mu &= \frac{1}{D} \sum_{d=1}^D x_{\text{in}}[d]\\
-    \sigma^2 &= \frac{1}{n} \sum_{i=1}^n \left(x_{\text{in}}[d] - \mu\right)^2\\
+    \sigma^2 &= \frac{1}{D} \sum_{d=1}^D \left(x_{\text{in}}[d] - \mu\right)^2\\
     x_{\text{out}}[d] &= \gamma \frac{x_{\text{in}}[d] - \mu}{\sigma} + \beta
     \end{aligned}
-    This is like $l^2$ normalization but also centers the data. One issue with
-    batch normalization is that introduces subtle dependence between samples in
-    the same batch via the normalization statistics $\mu$ and $\sigma$ -- both
-    $l^2$ and LayerNorm avoid this and truly process the data independently.
+    This is like $\ell^2$ normalization, processing each sample independently
+    without coupling across batches. Like batch normalization, the learnable
+    $\gamma_d$ and $\beta_d$ preserve flexibility.
 
     ![Batch vs. Layer Norm, visualized in the reading.](figures/batchnorm_vs_layernorm_diagram.png){width=60%}
 
 
-1. **Output Layers**. These layers are used to transform the internal
-representations $h^l$ to a form that can be used to predict $y$.
+1. **Output Layers**. These convert internal representations $h^l$ into a form
+matched to the prediction target $y$.
 
-    - Softmax Layer. This is used in classification tasks. It transforms an
-    activation to the a probability distribution over $K$ classes. This
-    distribution can be used either for prediction (e.g., most likely class
-    $\to$ image label) or sampling (e.g., sample next word using that
-    distribution)
+    - Softmax Layer. Maps an activation to a probability distribution over $K$ classes,
     \begin{aligned}
       x_{\text{out}}[d] &= \frac{e^{-\tau x_{\text{in}}[d]}}
         {\sum_{k=1}^K e^{-\tau x_{\text{in}}[k]}}
     \end{aligned}
-    Higher values of the _temperature_ parameter $\tau$ flatten the distribution
-    across the $K$ classes, which is helpful for sampling more diverse outputs.
-    - Image Prediction Layer. In image generation tasks, we rescale a tensor to
-    the range $\left[0, 255\right]$ which is the range of pixel values that
-    typical RGB images take.
+    The output can support either prediction (argmax $\to$ class label) or
+    sampling (draw from the distribution of plausible outputs). The temperature
+    $\tau > 0$ controls the concentration of the distribution: large $\tau$
+    sharpen the distribution towards the most probable class, small $\tau$
+    flatten it towards the uniform, resulting in more diverse samples.
+
+    - Image rescaling For image generation, map activations to the pixel range
+    $\left[0, 255\right]$
     \begin{aligned}
       x_{\text{out}}[d] &= 255*\text{sigmoid}(x_{\text{in}}[d])
     \end{aligned}
 
-1. There are many other layers that are widely used, like convolutional, gated
-recurrent unit, and transformer layers. They can be used to encode specific
-inductive biases (e.g., convolutional layers mimic the human visual system). The
-key point is that these layers can be mixed and matched like lego blocks. As
-long as a layer inputs and outputs a tensor, and as long as it is differentiable
-with respect to its learnable parameters, then it can be easily incorporated
-into deep learning architectures.
+1. Many other layers exit, like convolutional, gated recurrent unit, and
+transformer layers. They can be used to encode specific inductive biases (e.g.,
+convolutions pool local spatial features). The main idea is that any layer that
+takes a tensor in, produces a tensor out, and is differentiable with respect to
+learnable parameters can be composed into a deep learning architecture. Layers
+are interchangeable parts, like lego blocks.
 
 ## Learning Representations
 
-1. The reading lists five reasons why deep learning architectures have been so successful:
+1. The reading lists five reasons for deep learning's success. Summarizing,
 
-    > a. They are high capacity (big enough nets are universal approximators).
-    > b. They are differentiable (the parameters can be optimized via gradient descent).
-    > c. They have good inductive biases (neural architectures reflect real structure in the world).
-    > d. They run efficiently on parallel hardware.
-    > e. They build abstractions.
+    a. High capacity -- large networks can learn flexible functions.
+    b. Differentiable -- parameters can be optimized out-of-the-box with stochastic gradient descent.
+    c. Good inductive biases -- architectures reflect real-world structure.
+    d. Hardware friendly -- tensor operations parallelize on GPUs.
+    e. Learned abstractions -- Networks automatically learn useful intermediate representations.
 
-1. The first reason also makes them difficult to interpret. Simply by reading
-off the parameters $\theta$, it's not at all clear how it will treat a new input
-$x$ without running the entire computation.
+1. Point (a) also makes deep networks difficult to interpret. We can't
+understand what a network will do with a new input $x$ by inspecting $theta$
+directly. We have to run the computation.
 
-1. $^\dagger$ The last reason gives a key hint towards explaining AI models. Each layer
-processes the previous inputs to arrive at a final representation $h^{L}$ where
-$y$'s prediction is straightforward. For example, in the toy problem below, it
-transforms nonlinear classification in the input space $x$ into linear
-classification in the representation space $h^L$.
+1. $\^dagger$ Property (e) deserves closer consideration. Each layer transforms
+an input, and by the final layer, the representation $h^{L - 1}$ should make
+predicting $y$ straightforward. In the toy example below, what requires a
+nonlinear boundary in the input space $x$ becomes linearly separable by $h^{L -
+1}$.
 
     ![Learned representations transform data distributions so that classes are easily separated.](figures/nn_training_viz.png)
 
-1. $^\dagger$ It turns out that, more than simply making the final objective easier, deeper
-layers learn more and more abstract features of the input. This is remarkable
-because, traditionally, those abstract features would have been extracted by
-hand (e.g., this was the basis for the SIFT algorithm in computer vision
-@Lowe1999). We'll spend several weeks trying to understand in exactly what sense
-deep models can learn abstract representations.
+1. $^\dagger$ More amazingly, deeper layers learn progressively more abstract
+patterns. E.g., in image classification, they learn pixels $\to$ edges $\to$
+parts $\to$ objects. Traditionally, abstract features were hand-engineered
+(e.g., SIFT descriptors in computer vision @Lowe1999). That networks discover
+them from data alone is one fo the central phenomena associated with deep
+learning, and we will spend several weeks studying exactly what "learned
+abstraction" really means.
 
-    ![Deeper layers learn more abstract representations of the input data. Figure from @Bengio2009.](figures/yoshua_bengio_representations.png){width=40%}
+    ![Deeper layers learn increasingly abstract representations of the input data. Figure from @Bengio2009.](figures/yoshua_bengio_representations.png){width=40%}
 
 ## Code Example

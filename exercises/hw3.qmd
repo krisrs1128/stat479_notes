@@ -120,12 +120,8 @@ interpret the resulting models.
 
 ```{r bike-setup}
 f <- tempfile()
-download.file("https://github.com/krisrs1128/treelapse/raw/master/data/bike.rda", f)
-bike <- get(load(f)) |>
-select(-dteday) |>
-    mutate(
-    across(where(is.character), as.factor)
-)
+download.file("https://github.com/krisrs1128/stat479_notes/raw/master/data/bike.rds", f)
+bike <- readRDS(f)
 ```
 
 a. Setup a boosting model pipeline that supports tuning over `nrounds`,
