@@ -1,0 +1,13 @@
+name: stat479_week11
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - matplotlib
+  - pip
+  - pip:
+      - torch==2.10.0
+      - torchvision
+      - altair[all]
+prefix: /opt/miniconda3/envs/stat479_week11
