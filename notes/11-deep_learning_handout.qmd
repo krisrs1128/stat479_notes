@@ -74,11 +74,11 @@ tested.
 
 | Task | $x_i$ | $y_i$ | Example |
 |---|---|---| --- | --- |
-| Image Classification | image | label | |
-| Object Detection | image | label + bounding box | |
-| Language Modeling | sequence of words | next word | |
-| Sentence Translation | sequence of words | sequence of words | |
-| Style Transfer | image | new image | |
+| Image Classification | image | label | ![Task from @helberetal.](figures/imgage_classification.png){width=200px} |
+| Object Detection | image | label + bounding box | ![Credit to Yagnik B on [Wikimedia](https://commons.wikimedia.org/wiki/File:YOLOv5_and_SAHI_interface_(Ariel_top_view_of_Ahmedabad,_Gujarat,_India,_2022).jpg).](figures/object_detection.jpg){width=200px} |
+| Language Modeling | sequence of words | next word | ![](figures/next_word_pred.png){width=200px} |
+| Sentence Translation | sequence of words | sequence of words | ![](figures/sentence_translation.png){width=200px}  |
+| Style Transfer | image | new image | ![Mona Lisa in Starry Night style, from [Wikimedia](https://commons.wikimedia.org/wiki/File:Mona_lisa_the_starry_night_o_lbfgs_i_content_h_720_m_vgg19_cw_100000.0_sw_30000.0_tv_1.0.jpg).](figures/Mona_lisa_the_starry_night_o_lbfgs_i_content_h_720_m_vgg19_cw_100000.0_sw_30000.0_tv_1.0.jpg){width=200px} |
 
 **Approach.** We represent data as $D$-dimensional tensors. Define parameterized
 modules $f_l(\cdot; \theta_l)$  and compose them into architectures $f = f_{L}
