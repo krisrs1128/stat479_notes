@@ -97,6 +97,10 @@ Channel), and video adds a Time axis, so their tensors are 4D. A document is a
 Vocabulary $\times$ Document tensor where each word is one-hot encoded. Though,
 document lengths vary, so a dataset contains tensors of differnet sizes.
 
+    ![](figures/tensor_encoding_image.jpg){width=32%}
+    ![](figures/tensor_encoding_video.jpg){width=32%}
+    ![](figures/tensor_encoding_words.jpg){width=32%}
+
 1. We can stack a "batch" of $n$ tensors into a single tensor. For example, 10
 RGB images of size $16 \times 16 \times 3$ can be written as a $10 \times 16
 \times 16 \times 3$ tensor. This is helpful because GPUs perform tensor
@@ -108,7 +112,7 @@ arithmetic in parallel, so batching lets us optimize over many examples at once.
 be made from composable modules. We start with the simplest case: mapping a
 vecor $x \in \reals^D$ to a binary label $y \in \{0, 1\}$ using the perceptron (@Rosenblatt1958).
 
-    ![Diagram representing a perceptron. (Credit to Torralba et al.).](figures/perceptron_fig2.png){width=30%}
+    ![Layers of a simple perceptron.](figures/perceptron_layers.jpg){width=30%}
 
 1. **Definition.** A perceptron combines two transformations:
 \begin{align*}
@@ -127,6 +131,8 @@ a binary classifier. Historically, this was viewed as a model of a neuron that
 $\{x: w^\top x = -b\}$ is the decision boundary between classes. Changing
 $w$ rotates the boundary and changing $b$ translates it.
 few choices of $w$ and $b$ are shown below.
+
+    ![Interpreting weights and biases in a perceptron.](figures/parameter_directions.jpg){width=70%}
 
    _Exercise. Draw the decision boundary when $w = \begin{bmatrix} 1 \\ 1\end{bmatrix}$ and $b = -1$. Repeat for $w = \begin{bmatrix} -1 \\ 1 \end{bmatrix}$ and $b = 0$._
 
@@ -168,18 +174,24 @@ Here, $W_{l} \in \reals^{D_{l + 1} \times D_{l}}$, $b_{l} \in \reals^{D_{l +
 the argument is a generic $v \in \reals^{D_{l}}$. At the first layer, this is
 $x$, but at deeper layers, it is the current hidden representation $h^{l - 1}$.
 
-    ![]
+    ![Representation of transformations in a two layer MLP.](figures/mlp_layers.jpg){width=25%}
 
-    _Exercise: Modify this figure to show the shape of the tensor $W_{1}$._
-
-1. **Geometric interpretation ($L = 2, D_{1} = 2)$**. Each row of $W_1$ defines
+1. **Geometric interpretation ($L = 2)$**. Each row of $W_1$ defines
 a linear classifier in the input space $x$. The second layer $W_2$ mixes these
 classifiers. This allows for piecewise linear decision boundaries, which are
 more flexible than the ordinary perceptron. Increasing $D_2$ (the number of rows
 of $W_1$) adds more classifiers to the mixture, allowing more complex
 boundaries.
 
-    _Exercise: TRUE FALSE The dataset visualized below can be classified by a two layer MLP._
+    ![A two-dimensional example of the geometric interpretation.](figures/activation_mixing.jpg){width=70%}
+
+    ![A one-dimensional example of the geometric interpretation, to show how multilayer networks could apply to regression rather than classification.](figures/activation_mixing_1d.jpg){width=80%}
+
+    _Exercise: For each $i, j$, what is the sign of $\left[W_{1}\right]_{ij}$._
+
+    _Exercise: TRUE FALSE The dataset visualized below can be perfectly classified by a two layer MLP._
+
+    ![Is two layers enough?](figures/nonlinear_decision_boundary.jpg){width=40%}
 
 1. **Deeper models**. The $L$-layer MLP repeats the pattern,
 \begin{align*}
@@ -273,7 +285,6 @@ improve the loss landscape for stochastic gradient descent.
 
     ![Batch vs. Layer Norm (credit to Torralba et al.).](figures/batchnorm_vs_layernorm_diagram.png){width=60%}
 
-
 1. **Output Layers**. These convert internal representations $h^l$ into a form
 matched to the prediction target $y$.
 
@@ -315,7 +326,7 @@ are interchangeable parts, like lego blocks.
 understand what a network will do with a new input $x$ by inspecting $theta$
 directly. We have to run the computation.
 
-1. $\^dagger$ Property (e) deserves closer consideration. Each layer transforms
+1. $^\dagger$ Property (e) deserves closer consideration. Each layer transforms
 an input, and by the final layer, the representation $h^{L - 1}$ should make
 predicting $y$ straightforward. In the toy example below, what requires a
 nonlinear boundary in the input space $x$ becomes linearly separable by $h^{L -
@@ -335,7 +346,11 @@ abstraction" really means.
 
 ## Code Example
 
-```{python}
+1. We simulated a simple 2D dataset below. Except for 5% of cases, samples are
+assigned to their classes depending on whether they lie in a circle of radius
+one centered at the origin.
+
+   ```{python}
 #| label: data simulation
 import numpy as np
 import pandas as pd
@@ -350,48 +365,74 @@ y = (np.sum(x**2, axis=1) < 1).astype(int)
 # 5% noise
 flip_ix = np.random.choice(N, N // 20, replace=False)
 y[flip_ix] = 1 - y[flip_ix]
+   ```
 
-simulation_df = pd.DataFrame(x, columns=['x1', 'x2'])
-simulation_df['y'] = y.astype(str)
-```
-
-```{python}
+   ```{python}
 #| echo: false
 #| out-width: 40%
 import altair as alt
+
+simulation_df = pd.DataFrame(x, columns=['x1', 'x2'])
+simulation_df['y'] = y.astype(str)
 dataset_vis = alt.Chart(simulation_df).mark_point(filled=True, size=60).encode(
     x=alt.X('x1', title='x.1'),
     y=alt.Y('x2', title='x.2'),
     color=alt.Color('y:N', scale=alt.Scale(scheme='viridis'), title='y')
 ).properties(title="Toy Dataset")
 dataset_vis
-```
+   ```
 
-```{python}
-# --- b. Model Training ---
+1. The `torch` package defines many layers which we can immediately combine into
+a model using `nn.Sequential`. In the code below, $W_{1} \in \reals^{20 \times
+2}, W_{2}, W_3 \in \reals^{20 \times 20}$, and $W_{4} \in \reals^{2 \times 20}$.
+We use ReLU nonlinearities $g$ and use a softmax layer to allow classification
+into the two classes.
+
+   ```{python}
 model = nn.Sequential(
     nn.Linear(2, 20), nn.ReLU(),
     nn.Linear(20, 20), nn.ReLU(),
     nn.Linear(20, 20), nn.ReLU(),
     nn.Linear(20, 2), nn.Softmax(dim=1)
 )
-```
+   ```
 
-```{python}
-X_train = torch.tensor(simulation_df[['x1', 'x2']].values, dtype=torch.float32)
+1. Even though our data are already stored as matrices and vectors, `torch`
+needs them stored as a `tensor` data type. This is what allows training to use
+the GPU when it is available.
+
+   ```{python}
+X_train = torch.tensor(x, dtype=torch.float32)
 y_train = torch.tensor(y, dtype=torch.long)
+   ```
+
+1. The code below runs a form of stochastic gradient descent (`optim.Adam`) to
+learn the weights $W_{l}$ and biases $b_{l}$ that minimize a smooth version of
+the misclassification loss (`CrossEntropyLoss`). The optimization is run for 100
+steps.
+
+   ```{python}
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 criterion = nn.CrossEntropyLoss()
 
 for epoch in range(100):
-    optimizer.zero_grad()
-    loss = criterion(model(X_train), y_train)
-    loss.backward()
-    optimizer.step()
-```
+    optimizer.zero_grad() # forget previous gradient
+    loss = criterion(model(X_train), y_train) # compute loss at current parameters
+    loss.backward() # evaluate the gradient
+    optimizer.step() # take a gradient step
+   ```
 
-```{python}
-# Grid for Predictions
+1. I've hidden some tedious code to create a fine grid along the data domain,
+stored in the tensor `X_tensor`, but the block below runs the fitted model on
+each of those test points by calling the `model` object. The output has two
+columns, corresponding to predicted probabilities for the two classes; we only
+visualize one class. Note that we converted the output to a numpy array to make
+plotting more straightforward.  We can see that the output layer separates the
+classes well, though note the influence of a few noisy observations.
+
+   ```{python}
+#| label: define-grid
+#| echo: false
 grid_range = np.linspace(-4.5, 4.5, 50)
 xx, yy = np.meshgrid(grid_range, grid_range)
 X_grid = torch.tensor(np.c_[xx.ravel(), yy.ravel()], dtype=torch.float32)
@@ -401,14 +442,14 @@ grid_df = pd.DataFrame(X_grid.numpy(), columns=['x1', 'x2']).assign(
     x1_lo=lambda d: d.x1 - dx / 2, x1_hi=lambda d: d.x1 + dx / 2,
     x2_lo=lambda d: d.x2 - dx / 2, x2_hi=lambda d: d.x2 + dx / 2,
 )
-
-model.eval()
+   ```
+   ```{python}
+#| label: model-preds
 with torch.no_grad():
     grid_df['y_hat'] = model(X_grid)[:, 1].numpy()
+   ```
 
-```
-
-```{python}
+   ```{python}
 #| label: visualize-preds
 #| echo: false
 points = alt.Chart(simulation_df).mark_point(filled=True, size=40).encode(
@@ -424,20 +465,26 @@ def activation_heatmap(color_field, title):
         color=alt.Color(color_field),
     )
     return (rect + points).properties(title=title)
-activation_heatmap('y_hat:Q', "Predicted Probabilities")
-```
 
-```{python}
+activation_heatmap('y_hat:Q', "Predicted Probabilities")
+   ```
+
+1. We can access activations before the output layer by indexing into the model
+object. The code below gets the post-layer-1 activations $h^{1}$ from the model
+above. We can see that it learns a linear boundary along one of the sides of the
+circle separating the classes.
+
+   ```{python}
 #| label: activations
 submodel = model[:2] # layer 1 postactivation
 with torch.no_grad():
     grid_df['h'] = submodel(X_grid).numpy()[:, 2] # neuron 3
-```
+   ```
 
-```{python}
+   ```{python}
 #| echo: false
 #| out-width: 40%
 activation_heatmap('h:Q', "Single Neuron Activation")
-```
+   ```
 
-_Exercise: Modify the code above to draw the activations for (i) a different neuron in the same layer, and (ii) a neuron in a different layer. Comment on the differences._
+   _Exercise: Modify the code above to draw the activations for (i) a different neuron in the same layer, and (ii) a neuron in a different layer. Comment on the differences._
