@@ -50,8 +50,8 @@ set.seed(2026)
 #| echo: false
 # includes the SHAP package. Can install it using,
 # > conda env create -f stat479_week6.yml
-# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week9.yml
-#use_condaenv("stat479_week9")
+# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week11.yml
+use_condaenv("stat479_week11")
 ```
 
 _Readings: [1](https://visionbook.mit.edu/neural_nets.html) (sections 12.1 - 12.7, but skip 12.5.2 - 12.5.3), [2](https://docs.pytorch.org/tutorials/beginner/basics/intro.html#learn-the-basics) (optional)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/11-deep_learning_overview.qmd)_
@@ -83,14 +83,14 @@ tested.
 **Approach.** We represent data as $D$-dimensional tensors. Define parameterized
 modules $f_l(\cdot; \theta_l)$  and compose them into architectures $f = f_{L}
 \circ \dots \circ f_{1}$. Intermediate representations $h_l$ bridge input $x$
-*with output $y$. Fit $\theta_l$ by minimizing a loss function.
+with output $y$. Fit $\theta_l$ by minimizing a loss function.
 
 ## Tensor Data Structures
 
 1. We can often represent data as $D$-dimensional tensors (multidimensional
 arrays). Vectors and matrices are the $D = 1$ and $D = 2$ cases.
 
-1. This works across many problem contexts. E.g., class labels $y_i \{1, \dots,
+1. This works across many problem contexts. E.g., class labels $y_i \in \{1, \dots,
 K\}$ become one-hot encoded vectors, so tensors capture standard statistics
 problems. RGB images are 3D tensors (Height $\times$ Width $\times$ Color
 Channel), and video adds a Time axis, so their tensors are 4D. A document is a
@@ -107,6 +107,8 @@ arithmetic in parallel, so batching lets us optimize over many examples at once.
 1. We want a general recipe for mapping tensors to predictions. This recipe will
 be made from composable modules. We start with the simplest case: mapping a
 vecor $x \in \reals^D$ to a binary label $y \in \{0, 1\}$ using the perceptron (@Rosenblatt1958).
+
+    ![Diagram representing a perceptron. (Credit to Torralba et al.).](figures/perceptron_fig2.png){width=30%}
 
 1. **Definition.** A perceptron combines two transformations:
 \begin{align*}
@@ -126,9 +128,9 @@ $\{x: w^\top x = -b\}$ is the decision boundary between classes. Changing
 $w$ rotates the boundary and changing $b$ translates it.
 few choices of $w$ and $b$ are shown below.
 
-   _Exercise. Draw the decision boundary when $w = \begin{bmatrix}1 & 0\end{bmatrix}$ and $b = 1$._
+   _Exercise. Draw the decision boundary when $w = \begin{bmatrix} 1 \\ 1\end{bmatrix}$ and $b = -1$. Repeat for $w = \begin{bmatrix} -1 \\ 1 \end{bmatrix}$ and $b = 0$._
 
-   _Exercise. TRUE FALSE The decision boundary is parallel to $w^\perp$, the vector perpendicular to $w$._
+   _Exercise. TRUE FALSE The decision boundary is always perpendicular to $w$._
 
 1. **$D > 2$**. This logic holds in higher dimensions. The perceptron assigns $y
 = 1$ whenever $x$ has a large enough projection onto $w$, i.e., $w^\top x > -b$.
@@ -142,6 +144,8 @@ The decision boundary is now a $D - 1$-dimensional hyperplane.
 nonconvex 0-1 loss which is hard to optimize. Modern approaches replace this
 loss with smooth surrogates, like cross-entropy, which are amenable to
 gradient-based optimization.
+
+    ![We adjust $w$ and $b$ to minimize the training loss.](figures/fitting_a_perceptron.png){width=90%}
 
 ## Multilayer Networks
 
@@ -157,13 +161,16 @@ x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g
 where each linear layer is,
 are mappings
 \begin{align}
-f_{l}\left(v\right) &= W_{l}v + b_{l} \space (\text{layer } l \text{ weights and biases})\\
+f_{l}\left(v\right) &= W_{l}v + b_{l} \space & \quad\quad \triangleleft \quad \text{layer} \ell \text{ weights and biases}.
 \end{align}
-where $W_{l} \in \reals^{D_{l + 1} \times D_{l}}$, $b_{l} \in \reals^{D_{l +
-1}}$ and $g$ is a nonlinear activation function applied elementwise (the
-threshold from before or alternatives defined later). Note that the argument is
-a generic $v \in \reals^{D_{l}}$. At the first layer, this is $x$, but at deeper
-layers, it is the current hidden representation $h^{l - 1}$.
+Here, $W_{l} \in \reals^{D_{l + 1} \times D_{l}}$, $b_{l} \in \reals^{D_{l +
+1}}$ and $g$ is a nonlinear activation function applied elementwise.  Note that
+the argument is a generic $v \in \reals^{D_{l}}$. At the first layer, this is
+$x$, but at deeper layers, it is the current hidden representation $h^{l - 1}$.
+
+    ![]
+
+    _Exercise: Modify this figure to show the shape of the tensor $W_{1}$._
 
 1. **Geometric interpretation ($L = 2, D_{1} = 2)$**. Each row of $W_1$ defines
 a linear classifier in the input space $x$. The second layer $W_2$ mixes these
@@ -176,7 +183,7 @@ boundaries.
 
 1. **Deeper models**. The $L$-layer MLP repeats the pattern,
 \begin{align*}
-x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} \dots \xrightarrow{g} h^{L - 1} \xrightarrow{\text{output layer}} \hat{y}
+x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} \dots \xrightarrow{g} h^{L - 1} \xrightarrow{g} \hat{y}
 \end{align*}
 so that we can continue mixing increasingly complex classifiers.
 
@@ -184,20 +191,20 @@ so that we can continue mixing increasingly complex classifiers.
 
 1. There are two types of quantities involved with a deep learning model, and they each play a different role in learning and prediction.
 
-  - **Parameters** $\theta = \{W_l, b_l\}_{l = 1}^{L}$ are learned from the full
-  data $\{x_i, y_i\}$. They are shared across all inputs.
-  - **Activations** are intermediate representations of a singel input $x$ as it
-  travels through the network. We distinguish _pre_activations $z^l =
-  f^l\left(h^{l - 1}\right)$ from _post_activations $h^l = g(z^l)$ depending on
-  whether the nonlinearity $g$ has been applied.
+    - **Parameters** $\theta = \{W_l, b_l\}_{l = 1}^{L}$ are learned from the
+    full data $\{x_i, y_i\}$. They are shared across all inputs.
+    - **Activations** are intermediate representations of a singel input $x$ as
+    it travels through the network. We distinguish preactivations $z^l =
+    f^l\left(h^{l - 1}\right)$ from postactivations $h^l = g(z^l)$ depending
+    on whether the nonlinearity $g$ has been applied.
 
-  Training adjusts $\theta$ so that the final representations $h^{L - 1}$ are
+1. Training adjusts $\theta$ so that the final representations $h^{L - 1}$ are
   predictive of $y$.
 
-    ![Distinction between parameters and activations. Figure from the reading.](figures/params_vs_activations.png){width=70%}
+    ![Distinction between parameters and activations (Credit to Torralba et al.).](figures/params_vs_activations.png){width=70%}
 
-1. If $g$ is differentiable (almost everywhere), the entire network $f = f_{L}
-\circ g \circ \dots \circ g \circ f_{1}$ is a composition of nearly smooth
+1. If $g$ is differentiable (almost everywhere), the entire network $f = g \circ f_{L - 1}
+\circ \dots \circ g \circ f_{1}$ is a composition of nearly smooth
 smooth functions. The result remains nearly smooth, meaning we can compute
 $\nabla_{\theta} L$ and minimize the loss using stochastic gradient descent.
 
@@ -264,7 +271,7 @@ improve the loss landscape for stochastic gradient descent.
     without coupling across batches. Like batch normalization, the learnable
     $\gamma_d$ and $\beta_d$ preserve flexibility.
 
-    ![Batch vs. Layer Norm, visualized in the reading.](figures/batchnorm_vs_layernorm_diagram.png){width=60%}
+    ![Batch vs. Layer Norm (credit to Torralba et al.).](figures/batchnorm_vs_layernorm_diagram.png){width=60%}
 
 
 1. **Output Layers**. These convert internal representations $h^l$ into a form
@@ -327,3 +334,110 @@ abstraction" really means.
     ![Deeper layers learn increasingly abstract representations of the input data. Figure from @Bengio2009.](figures/yoshua_bengio_representations.png){width=40%}
 
 ## Code Example
+
+```{python}
+#| label: data simulation
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+N = 100
+x = np.random.standard_t(12, size=(N, 2))
+y = (np.sum(x**2, axis=1) < 1).astype(int)
+
+# 5% noise
+flip_ix = np.random.choice(N, N // 20, replace=False)
+y[flip_ix] = 1 - y[flip_ix]
+
+simulation_df = pd.DataFrame(x, columns=['x1', 'x2'])
+simulation_df['y'] = y.astype(str)
+```
+
+```{python}
+#| echo: false
+#| out-width: 40%
+import altair as alt
+dataset_vis = alt.Chart(simulation_df).mark_point(filled=True, size=60).encode(
+    x=alt.X('x1', title='x.1'),
+    y=alt.Y('x2', title='x.2'),
+    color=alt.Color('y:N', scale=alt.Scale(scheme='viridis'), title='y')
+).properties(title="Toy Dataset")
+dataset_vis
+```
+
+```{python}
+# --- b. Model Training ---
+model = nn.Sequential(
+    nn.Linear(2, 20), nn.ReLU(),
+    nn.Linear(20, 20), nn.ReLU(),
+    nn.Linear(20, 20), nn.ReLU(),
+    nn.Linear(20, 2), nn.Softmax(dim=1)
+)
+```
+
+```{python}
+X_train = torch.tensor(simulation_df[['x1', 'x2']].values, dtype=torch.float32)
+y_train = torch.tensor(y, dtype=torch.long)
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+criterion = nn.CrossEntropyLoss()
+
+for epoch in range(100):
+    optimizer.zero_grad()
+    loss = criterion(model(X_train), y_train)
+    loss.backward()
+    optimizer.step()
+```
+
+```{python}
+# Grid for Predictions
+grid_range = np.linspace(-4.5, 4.5, 50)
+xx, yy = np.meshgrid(grid_range, grid_range)
+X_grid = torch.tensor(np.c_[xx.ravel(), yy.ravel()], dtype=torch.float32)
+
+dx = grid_range[1] - grid_range[0]
+grid_df = pd.DataFrame(X_grid.numpy(), columns=['x1', 'x2']).assign(
+    x1_lo=lambda d: d.x1 - dx / 2, x1_hi=lambda d: d.x1 + dx / 2,
+    x2_lo=lambda d: d.x2 - dx / 2, x2_hi=lambda d: d.x2 + dx / 2,
+)
+
+model.eval()
+with torch.no_grad():
+    grid_df['y_hat'] = model(X_grid)[:, 1].numpy()
+
+```
+
+```{python}
+#| label: visualize-preds
+#| echo: false
+points = alt.Chart(simulation_df).mark_point(filled=True, size=40).encode(
+    x='x1:Q', y='x2:Q', color=alt.Color('y:N', legend=None)
+)
+
+def activation_heatmap(color_field, title):
+    rect = alt.Chart(grid_df).mark_rect().encode(
+        x=alt.X('x1_lo:Q', axis=alt.Axis(labels=False, ticks=False), title='x.1'),
+        x2='x1_hi:Q',
+        y=alt.Y('x2_lo:Q', axis=alt.Axis(labels=False, ticks=False), title='x.2'),
+        y2='x2_hi:Q',
+        color=alt.Color(color_field),
+    )
+    return (rect + points).properties(title=title)
+activation_heatmap('y_hat:Q', "Predicted Probabilities")
+```
+
+```{python}
+#| label: activations
+submodel = model[:2] # layer 1 postactivation
+with torch.no_grad():
+    grid_df['h'] = submodel(X_grid).numpy()[:, 2] # neuron 3
+```
+
+```{python}
+#| echo: false
+#| out-width: 40%
+activation_heatmap('h:Q', "Single Neuron Activation")
+```
+
+_Exercise: Modify the code above to draw the activations for (i) a different neuron in the same layer, and (ii) a neuron in a different layer. Comment on the differences._
