@@ -97,9 +97,9 @@ Channel), and video adds a Time axis, so their tensors are 4D. A document is a
 Vocabulary $\times$ Document tensor where each word is one-hot encoded. Though,
 document lengths vary, so a dataset contains tensors of differnet sizes.
 
-    ![](figures/tensor_encoding_image.jpg){width=32%}
-    ![](figures/tensor_encoding_video.jpg){width=32%}
-    ![](figures/tensor_encoding_words.jpg){width=32%}
+    ![](figures/tensor_encoding_image.png){width=32%}
+    ![](figures/tensor_encoding_video.png){width=32%}
+    ![](figures/tensor_encoding_words.png){width=32%}
 
 1. We can stack a "batch" of $n$ tensors into a single tensor. For example, 10
 RGB images of size $16 \times 16 \times 3$ can be written as a $10 \times 16
@@ -112,7 +112,7 @@ arithmetic in parallel, so batching lets us optimize over many examples at once.
 be made from composable modules. We start with the simplest case: mapping a
 vecor $x \in \reals^D$ to a binary label $y \in \{0, 1\}$ using the perceptron (@Rosenblatt1958).
 
-    ![Layers of a simple perceptron.](figures/perceptron_layers.jpg){width=30%}
+    ![Layers of a simple perceptron.](figures/perceptron_layers.png){width=30%}
 
 1. **Definition.** A perceptron combines two transformations:
 \begin{align*}
@@ -132,7 +132,7 @@ $\{x: w^\top x = -b\}$ is the decision boundary between classes. Changing
 $w$ rotates the boundary and changing $b$ translates it.
 few choices of $w$ and $b$ are shown below.
 
-    ![Interpreting weights and biases in a perceptron.](figures/parameter_directions.jpg){width=70%}
+    ![Interpreting weights and biases in a perceptron.](figures/parameter_directions.png){width=70%}
 
    _Exercise. Draw the decision boundary when $w = \begin{bmatrix} 1 \\ 1\end{bmatrix}$ and $b = -1$. Repeat for $w = \begin{bmatrix} -1 \\ 1 \end{bmatrix}$ and $b = 0$._
 
@@ -174,7 +174,7 @@ Here, $W_{l} \in \reals^{D_{l + 1} \times D_{l}}$, $b_{l} \in \reals^{D_{l +
 the argument is a generic $v \in \reals^{D_{l}}$. At the first layer, this is
 $x$, but at deeper layers, it is the current hidden representation $h^{l - 1}$.
 
-    ![Representation of transformations in a two layer MLP.](figures/mlp_layers.jpg){width=25%}
+    ![Representation of transformations in a two layer MLP.](figures/mlp_layers.png){width=25%}
 
 1. **Geometric interpretation ($L = 2)$**. Each row of $W_1$ defines
 a linear classifier in the input space $x$. The second layer $W_2$ mixes these
@@ -183,15 +183,15 @@ more flexible than the ordinary perceptron. Increasing $D_2$ (the number of rows
 of $W_1$) adds more classifiers to the mixture, allowing more complex
 boundaries.
 
-    ![A two-dimensional example of the geometric interpretation.](figures/activation_mixing.jpg){width=70%}
+    ![A two-dimensional example of the geometric interpretation.](figures/activation_mixing.png){width=70%}
 
-    ![A one-dimensional example of the geometric interpretation, to show how multilayer networks could apply to regression rather than classification.](figures/activation_mixing_1d.jpg){width=80%}
+    ![A one-dimensional example of the geometric interpretation, to show how multilayer networks could apply to regression rather than classification.](figures/activation_mixing_1d.png){width=80%}
 
     _Exercise: For each $i, j$, what is the sign of $\left[W_{1}\right]_{ij}$._
 
     _Exercise: TRUE FALSE The dataset visualized below can be perfectly classified by a two layer MLP._
 
-    ![Is two layers enough?](figures/nonlinear_decision_boundary.jpg){width=40%}
+    ![Is two layers enough?](figures/nonlinear_decision_boundary.png){width=40%}
 
 1. **Deeper models**. The $L$-layer MLP repeats the pattern,
 \begin{align*}
