@@ -12,7 +12,7 @@ execute:
     echo: true
     message: false
     warning: false
-    cache: false
+    cache: true
     eval: true
 ---
 
@@ -48,13 +48,13 @@ set.seed(2026)
 ```{r}
 #| label: python-setup
 #| echo: false
-# includes the SHAP package. Can install it using,
+# includes torch and transformers. Can install it using,
 # > conda env create -f stat479_week6.yml
-# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week11.yml
+# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week12.yml
 use_condaenv("stat479_week12")
 ```
 
-_Readings: [1]()_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/12-transformers_handout.qmd)_
+_[Reading](https://arxiv.org/abs/2304.10557)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/12-transformers_handout.qmd)_
 
 Items marked $^{\dagger}$ are not in the required reading and will not be
 tested. The required reading covers some methods beyond this handout, those also
@@ -62,13 +62,13 @@ won't be tested.
 
 ## Setup
 
-1. **Definition**. We view as single sample as a sequence of $N$ tokens, $x_{n}
+1. **Definition**. We view a single sample as a sequence of $N$ tokens, $x_{n}
 \in \reals^{D}$. For example,
 
-  - In language, we represent a document as a sequence of $N$ words. We could
-  one-hot encode each word into a vector $e\left(\text{word}\right) \in \reals^{V}$ of length equal to the number of terms $V$ in the vocabulary.
+  - In language, we represent a document as a sequence of $N$ words, mapping each word to a one-hot vector $e(\text{word}) \in \reals^{V}$, where $V$ is the vocabulary size,
 
 ```{python}
+#| label: tokenize-text
 from transformers import AutoTokenizer
 
 tokenizer = AutoTokenizer.from_pretrained("gpt2")
@@ -81,18 +81,18 @@ tokens["input_ids"]
   e\left(\text{word}\right)$ where $W \in \reals^{D \times V}$ and $D \ll V$.
 
 ```{python}
+#| label: word-embedding
 import torch
 
 # V = 50257 words, D = 8 dimensions
 embed = torch.nn.Embedding(num_embeddings=50257, embedding_dim=16)
 X = embed(torch.LongTensor(tokens["input_ids"])).T
-X # notice columns 1 - 2 match 5 - 6
+torch.round(X, decimals=2) # notice columns 1 - 2 match 5 - 6
 ```
 
   - In vision, we represent an image as a sequence of $N$ image patches. Here $D = W^{\text{patch}} \times H^{\text{patch}}$, the total number of pixels in each patch.
 
-1. **Goal**. Transform a sequence of $N$ $D$-dimensional tokens into a
-representation useful for downstream prediction tasks. Specifically, we want a
+1. **Goal**. Map a token sequence $X \in \reals^{D \times N}$ to a representation useful for prediction. Specifically, we want a
 map parameterized by weights $\theta_{m}$,
 $f_{\theta_{m}}: \reals^{D \times N} \to \reals^{D \times N}$,
 \begin{align*}
@@ -103,38 +103,32 @@ layer + nonlinear activation'' block used in MLPs.
 
 1. **Requirements**
 
-  - We must process the entire sequence at once. This is fundamentally different
-  from MLPs, which could only process one vector at a time.
+  - The map must act on the full sequence simultaneously, unlike an MLP, which processes one vector at a time.
 
-  - We must capture long-range dependence between tokens that are far apart in
-  the sequence. It must ``remember'' information from earlier in the sequence.
-  This is different from statistical models like GPs or traditional markov
-  processes, which quickly ``forget'' earlier parts of the sequence.
+  - The map must capture long-range dependence. It must ``remember'' information
+  from earlier in the sequence. This is unlike GPs and traditional statistical
+  models.
 
   ![To see why long-range dependence is important, consider patterns like quotes in books or braces in code. These affect the interpretation of the text for a long time after they start.](figures/karpathy_sequences.png)
 
-1. **Approach**. We will compose ``transformer'' blocks $f_{\theta_{m}}$ across
-multiple $m$ to gradually learn more and more meaningful features of our input
-sequence $X^{0}$,
+1. **Approach**. We compose transformer blocks $f_{\theta_1}, \dots, f_{\theta_M}$ to gradually refine the sequence representation,
 \begin{align*}
 X^{0} \xrightarrow{f_{\theta_{1}}} X^{1} \xrightarrow{f_{\theta_{2}}} \dots \xrightarrow{f_{\theta_{M}}} X^{M}
 \end{align*}
 Like in MLPs, the parameters $\theta_{1}, \dots, \theta_{M}$ will be optimized
-to accomplish some downstream task. We omit details of this optimization, since
-our goal is to understand models tha thave already been trained, not train new
-models from scratch.
+to accomplish some downstream task. We omit optimization details, since our
+focus is interpretability.
 
 1. **Preview**. Each block $f_{\theta_{m}}$ will have the form,
 
-  ![](figures/transformer_summary.png)
+  ![](figures/transformer_summary.png){width=60%}
 
   We've seen MLP and LayerNorm steps before, though we'll consider why they are
   helpful in this context. A critical, new component is the multihead
   self-attention operation (MHSA). This is what allows the transformation to
   learn long-range dependence.
 
-  Everything below the first $+$ is called ``Stage 1'' of the transformer
-  block and everything above is called ``Stage 2'''
+  Everything below the first $+$ is Stage 1 and everything above is Stage 2.
 
 ## Stage 1: Attention across sequence
 
@@ -169,29 +163,26 @@ similarity according to the distance between tokens. For example,
   \begin{align*}
   A_{nn'} &= \frac{\exp{\left|n - n'\right|}}{\sum_{n' = 1}^{N} \exp{\left|n - n'\right|}}
   \end{align*}
+  This can't learn long-range dependence since weights decay with distance.
 
-  But this has no chance of learning long-range dependence, since it only
-  attends to nearby tokens.
-
-1. **MHSA (attempt 2: content-based similarity)**. We can use the tokens
-themselves to define attention -- this is why it is called ``self-attention.''
-The idea is that tokens with similar representations should attend more closely
-to one another. We can measure this similarity with inner products $x_{n}^{\top}
-x_{n'}$, using a softmax so that the columns of $A$ are nonnegative and sum to
-one,
+1. **MHSA (attempt 2: content-based similarity)**. We use the tokens themselves
+to define attention. Tokens with similar representations attend to one another.
+We can measure this similarity with inner products $x_{n}^{\top} x_{n'}$, using
+a softmax so that the columns of $A$ are nonnegative and sum to one,
   \begin{align*}
   A_{nn'} &= \frac{\exp{x_{n}^\top x_{n^{\prime}}}}{\sum_{n' = 1}^{N} \exp{x_{n}^\top x_{n^{\prime}}}}
   \end{align*}
-  Notice that tokens attend to each other if they have similar representations,
-  even if they are far apart from one another in the sequence.  In this way,
-  we'll be able to learn long-range dependence.
+  Similarity is now content- (not position-) based, so long-range dependence is
+  possible.
 
   (need a picture)
 ```{python}
+#| label: basic-attention
 A = torch.softmax(X.T @ X, dim=0)
 ```
 
 ```{python}
+#| label: attention-heatmap
 #| echo: false
 import altair as alt
 import pandas as pd
@@ -211,10 +202,7 @@ alt.Chart(df).mark_rect().encode(
 ).properties(width=200, height=200)
 ```
 
-1. **MHSA (attempt 3: subspace-specific similarities)**. This approach is not
-very flexible. It imposes a universal notion of similarity between tokens. But
-in reality, there are many types of similarity that might be useful in different
-contexts. For example, "scale" and "arpeggio" might be similar in the sense
+1. **MHSA (attempt 3: subspace-specific similarities)**. This inner product imposes a single notion of similarity. In reality, multiple types exist. For example, "scale" and "arpeggio" might be similar in the sense
 of both being musical terms, while "scale" and "fish" might be similar in
 the sense of being a part of the animal. To this end, we project the tokens
 $x_{n}$ onto a subspace spanned by the $M < D$ rows of $U \in \reals^{M \times
@@ -223,17 +211,15 @@ similarity is,
   \begin{align*}
   A_{nn'} &= \frac{\exp{\left(Ux_{n}\right)^\top Ux_{n^{\prime}}}}{\sum_{n' = 1}^{N}\exp{\left(Ux_{n}\right)^\top Ux_{n^{\prime}}}}
   \end{align*}
-  By using different choices of $U$, we can capture different notions of
-  similarity.
 
 1. To illustrate, consider a representation where the first and last four
 dimensions reflect animal and music related meanings, respectively. Scale has
 high values in both. Subspace-specific $U$'s will be able to learn different
-types of similarity. In a trained model, the matrices $U$ will be learned rather
-than manually set in this way, but the main idea is that same -- each project
-defines its own sense of similarity.
+types of similarity. In a real model, $U$ is learned, not set manually, but the
+idea is the same -- each projection induces its own similarity
 
 ```{python}
+#| label: subspace-setup
 #| echo: false
 # Hand-crafted 6-token embeddings, D=8
 import torch
@@ -254,6 +240,7 @@ U_music[:, 4:] = torch.eye(4)
 ```
 
 ```{python}
+#| label: subspace-attention
 test_words = ["scale", "fish", "arpeggio", "music", "random", "other"]
 X = torch.tensor([
     [0.8, 0.9, 0.1, 0.7, 0.7, 0.8, 0.1, 0.2],  # scale: both
@@ -270,6 +257,7 @@ A_music = torch.softmax((U_music @ X).T @ (U_music @ X), dim=0)
 ```
 
 ```{python}
+#| label: subspace-heatmap
 #| echo: false
 words_indexed = [f"{w}_{i}" for i, w in enumerate(test_words)]
 df = pd.concat([
@@ -281,25 +269,24 @@ alt.Chart(df).mark_rect().encode(
     x=alt.X("token_n_prime:N", title="n'", sort=words_indexed),
     y=alt.Y("token_n:N", title="n", sort=words_indexed),
     color=alt.Color("weight:Q", scale=alt.Scale(scheme="blues"))
-).properties(width=180, height=180).facet(
+).properties(width=300, height=300).facet(
     column=alt.Column("projection:N", title=None)
 )
 ```
 
-1. **MHSA (attempt 4: asymmetry)**. Another way we use different $U$'s is to
-break symmetry in the similarity measurement. With a single $U$, the dot
-products $\left(Ux_{n}\right)^{\top}\left(U x_{n'}\right)$ are symmetric. Token
-$n$'s similarity to $n'$ always equals $n'$'s similarity to $n$. To allow
-asymmetry, we can use two different projections,
+1. **MHSA (attempt 4: asymmetry)**. With a single $U$, similarity is symmetric $A_{nn'} = A_{n'n}$. Separate projections $U_k, U_q$ break this symmetry,
   \begin{align*}
   A_{nn'} &= \frac{\exp{\left(U_{k}x_{n}\right)^\top U_{q}x_{n^{\prime}}}}{\sum_{n' = 1}^{N}\exp{\left(U_{k}x_{n}\right)^\top U_{q}x_{n^{\prime}}}}
   \end{align*}
    In the literature, the quantities $U_{q}x$ and $U_{k}x$ are called queries
-   and keys, respectively. Token $n'$ "asks" (query) which of the other tokens
-   $n$ are similar to it, the answer depends on whether the other token's
-   "key" matches it. In pseudocode, this is,
+   and keys, respectively.
+
+   Token $n'$ asks the query $U_q x_{n'}$ and token $n$ presents a key $U_k
+   x_n$. Attention is high when the key aligns with the query. In pseudocode,
+   this is,
 
 ```{python}
+#| label: asymmetric-attention
 Uq = torch.randn(6, 8)
 Uk = torch.randn(6, 8)
 
@@ -307,18 +294,19 @@ A_asym = torch.softmax((Uk @ X).T @ (Uq @ X), dim=0)
 ```
 
 ```{python}
+#| label: asymmetric-heatmap
 #| echo: false
 alt.Chart(attention_df(A_asym, test_words, "Asymmetric attention")).mark_rect().encode(
     x=alt.X("token_n_prime:N", title="n'", sort=words),
     y=alt.Y("token_n:N", title="n", sort=words),
     color=alt.Color("weight:Q", scale=alt.Scale(scheme="blues"))
-).properties(width=150, height=150).facet(
+).properties(width=300, height=300).facet(
     column=alt.Column("projection:N", title=None)
 )
 ```
 
-1. **MHSA** Finally, we can consider many keys and queries. This will allow us
-to capture the different senses of ``scale'' above. Specifically, for each layer
+1. **MHSA** Finally, we can consider many keys and queries. This
+can capture the different senses of "scale" above. Specifically, for each layer
 $m$, we define $H$ matrices,
 \begin{align*}
 U_{kh} \in \reals^{M \times D} \qquad U_{qh} \in \reals^{M \times D}
@@ -343,8 +331,7 @@ determines what to extract from those tokens.
 
 1. In the literature $V_{h}$ are called "values" -- when the query matches a key
 according to the similarities $A_{h}$, we return the values $V_{h}^{m}X^{m -
-1}$. Intuitively, $A_{h}^{m}$ tells the model which tokens to "listen" to, while
-$V$ dictates what we extract from those tokens, i.e., what we actually "hear."
+1}$. $A_h^m$ selects which tokens to mix and $V_h^m$ selects what to extract from them.
 For example, in the sentence "The movie was not good," the word "good" might
 attend most closely to the word "not." The token $x_{n'}^{m}$ representing "not"
 might capture many aspects of this word (e.g., it is a short word, it is common,
@@ -358,10 +345,10 @@ layer $m$.
 
 ## Stage 2: MLP across features
 
-1. While Stage 1 can learn long-range dependence across tokens, it still
-processes each feature dimension independently. Each row of $X^{m - 1}$ is mixed
-using the same attention weights $A^m$. The second stage
-applies a nonlinear transformation to each token independently with the goal of learning interactions within a single token.
+1. Stage 1 learns dependence across tokens
+but treats each feature separately. Every row of $X^{m - 1}$ is mixed
+by the same weights $A^m$. Stage 2 applies a per-token nonlinear
+transformation that learns interactions across feature dimensions.
 
 1. Specifically, Stage 1 returns,
 $$Y^m = X^{m-1} + \text{MHSA}(\bar{X}^{m-1})$$
@@ -374,6 +361,7 @@ where we similarly define the normalization $\bar{Y}^m = \text{LayerNorm}(Y^m)$
 and use lower case symbols to extract the $n^{th}$ columns of $X^m$ and $Y^m$. Expressing this as pseudocode,
 
 ```{python}
+#| label: transformer-block
 #| eval: false
 # Stage 1: mix across tokens
 X_norm = layer_norm(X)
@@ -384,39 +372,42 @@ Y_norm = layer_norm(Y)
 X_next = Y + mlp(Y_norm)
 ```
 
-1. Both stages use a form of residual connection, meaning that the output equals
-the input plus a learned correction. Notice only the correction uses LayerNorm
-in the input. The reason for using these connections is that, at initialization,
-the MLP and MHSA weights are small, so both corrections are near zero and the
-entire block acts as essentially the identity. Training gradually learns the
-corrections. This is reminiscent of boosting, where each training step refines
-the residuals of the current fit.
+1. Both stages use residual connections, meaning that output = input +
+correction.  Notice only the correction applies LayerNorm. The reason for using
+these connections is that, at initialization, the MLP and MHSA weights are
+small, so both corrections are near zero and the entire block acts as
+essentially the identity. Training gradually learns the corrections. This is
+reminiscent of boosting, where each training step refines the residuals of the
+current fit.
 
 1. Putting everything together, we arrive again at Figure 7 from the reading,
 
-![](figures/transformer_summary.png)
+  ![](figures/transformer_summary.png){width=60%}
 
 This is the map $f_{\theta_{m}} : \reals^{D \times N} \to \reals^{D \times N}$ from the setup, wiht parameters $\theta_m$ containing hte query, key, and value matrices from MHSA, the MLP weights, adn teh scale/shift parameters for the two LayerNorm steps. Stacking $M$ of these blocks gives a full transformer model.
 
 <!-- $$X^0 \xrightarrow{f_{\theta_1}} X^1 \xrightarrow{f_{\theta_2}} \cdots
 \xrightarrow{f_{\theta_M}} X^M$$ -->
 
-Each layer enriches the previous layer's token representations, by sharing
-information across tokens (Stage 1) and features (Stage 2). Stacking layers
-allows the representations to be mixed again so that higher-level, indirect
-relationships can emerge.
+Each layer enriches token representations by sharing information across tokens
+(Stage 1) and features (Stage 2). Stacking layers allows the representations to
+be mixed again so that higher-level, indirect relationships can emerge.
 
 ## Code Example
 
-1. Her'es a small example inspecting the attention weights from a pretrained
+1. Here's a small example inspecting the attention weights from a pretrained
 model.
 
 ```{python}
+#| label: bert-sentiment
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 
 tokenizer = AutoTokenizer.from_pretrained("textattack/bert-base-uncased-SST-2")
-model = AutoModelForSequenceClassification.from_pretrained("textattack/bert-base-uncased-SST-2")
+model = AutoModelForSequenceClassification.from_pretrained(
+    "textattack/bert-base-uncased-SST-2",
+    attn_implementation="eager"
+)
 
 reviews = [
     "terrible, 1 star",
@@ -428,14 +419,18 @@ torch.softmax(logits, dim=1)
 ```
 
 ```{python}
-text = "the movie was not good but the acting was brilliant"
+#| label: bert-attentions
+text = "A wonderful little production. The filming technique is very unassuming, old time BBC fashion and gives a comforting, and sometimes discomforting, sense of realism to the entire piece."
 inputs = tokenizer(text, return_tensors="pt")
 outputs = model(**inputs, output_attentions=True)
-A = outputs.attentions[0][0, 0].detach()  # layer 0, batch 0, head 0
+A = outputs.attentions[10][0, 11].detach()  # layer 11, batch 0, head 12
 ```
 
 ```{python}
+#| label: bert-heatmap
 #| echo: false
+#| eval: true
+alt.data_transformers.enable("vegafusion")
 words = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
 words_indexed = [f"{w}_{i}" for i, w in enumerate(words)]
 df = attention_df(A, words_indexed, "Layer 0, Head 0")
