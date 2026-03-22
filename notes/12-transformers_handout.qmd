@@ -1,5 +1,5 @@
 ---
-s"
+title: Transformers
 author: Kris Sankaran
 date: 2026-03-23
 bibliography: references.bib
@@ -133,7 +133,7 @@ models from scratch.
   self-attention operation (MHSA). This is what allows the transformation to
   learn long-range dependence.
 
-  Everything below the first $\plus$ is called ``Stage 1'' of the transformer
+  Everything below the first $+$ is called ``Stage 1'' of the transformer
   block and everything above is called ``Stage 2'''
 
 ## Stage 1: Attention across sequence
@@ -239,6 +239,12 @@ defines its own sense of similarity.
 import torch
 import pandas as pd
 import altair as alt
+
+def attention_df(A, words, label):
+    df = pd.DataFrame(A.detach().numpy(), columns=words, index=words)
+    df = df.reset_index(names="token_n").melt(id_vars="token_n", var_name="token_n_prime", value_name="weight")
+    df["projection"] = label
+    return df
 
 U_animal = torch.zeros(4, 8)
 U_animal[:, :4] = torch.eye(4)
@@ -352,34 +358,91 @@ layer $m$.
 
 ## Stage 2: MLP across features
 
-1. The second stage of the transformer applies a nonlinear transformation to
-each of the $N$ tokens one at a time. This stage is responsible for merging
-information across the $D$ features at each token. Specifically, write the
-$n^{th}$ tokens of $X^{m}$ and $Y^{m} as $x_{n}^{m}$ and $y_{n}^{m}$,
-respectively. Then, we process each token one at a time using an
-\begin{align*}
-x_{n}^{m} &= y_{n}^{m} + \text{MLP}\left(y_{n}^{m}\right)
-\end{align*}
+1. While Stage 1 can learn long-range dependence across tokens, it still
+processes each feature dimension independently. Each row of $X^{m - 1}$ is mixed
+using the same attention weights $A^m$. The second stage
+applies a nonlinear transformation to each token independently with the goal of learning interactions within a single token.
 
-1. The pattern above
-$x_{\text{out}} \leftarrow x_{\text{in}} + f(x_{\text{in}})$ is an example of a
-``residual connection.'' The idea is that it's easier to learn a modification of
-the input than an entirely new transformation of the input $x_{\text{out}} =
-f(x_{\text{in}})$. At the start of training, the transformation is just the
-identity, and over the course of training we gradually modify it.
+1. Specifically, Stage 1 returns,
+$$Y^m = X^{m-1} + \text{MHSA}(\bar{X}^{m-1})$$
+where $\bar{X}^{m-1} = \text{LayerNorm}(X^{m-1})$
+centers/scales each token's representation (with learned shift and scale
+parameters, as discussed in the last note). Stage 2 then modifies each token's
+features,
+$$x_n^m = y_n^m + \text{MLP}(\bar{y}_n^m)$$
+where we similarly define the normalization $\bar{Y}^m = \text{LayerNorm}(Y^m)$
+and use lower case symbols to extract the $n^{th}$ columns of $X^m$ and $Y^m$. Expressing this as pseudocode,
 
-(add a picture)
+```{python}
+#| eval: false
+# Stage 1: mix across tokens
+X_norm = layer_norm(X)
+Y = X + mhsa(X_norm)
 
-1. Another trick to streamline training is to normalize the inputs before both
-the MHSA and the MLP steps. It's common to use LayerNorm, introduced in the
-previous note, across tokens (rather than samples). Putting everything together,
-we arrive at the final transformer block.
+# Stage 2: mix across features
+Y_norm = layer_norm(Y)
+X_next = Y + mlp(Y_norm)
+```
 
-\begin{align*}
-x_{n}^{m} &= y_{n}^{m} + \text{MLP}\left(\bar{y}_{n}^{m}\right)\\
-\bar{Y}^{m} &= \text{LayerNorm}\left(Y^{m}\right)\\
-Y^{m} &= X^{m - 1} + \text{MHSA}\left(\bar{X}^{m - 1}\right)\\
-\bar{X}^{m - 1} &= \text{LayerNorm}\left(X^{m - 1}\right)
-\end{align*}
+1. Both stages use a form of residual connection, meaning that the output equals
+the input plus a learned correction. Notice only the correction uses LayerNorm
+in the input. The reason for using these connections is that, at initialization,
+the MLP and MHSA weights are small, so both corrections are near zero and the
+entire block acts as essentially the identity. Training gradually learns the
+corrections. This is reminiscent of boosting, where each training step refines
+the residuals of the current fit.
+
+1. Putting everything together, we arrive again at Figure 7 from the reading,
+
+![](figures/transformer_summary.png)
+
+This is the map $f_{\theta_{m}} : \reals^{D \times N} \to \reals^{D \times N}$ from the setup, wiht parameters $\theta_m$ containing hte query, key, and value matrices from MHSA, the MLP weights, adn teh scale/shift parameters for the two LayerNorm steps. Stacking $M$ of these blocks gives a full transformer model.
+
+<!-- $$X^0 \xrightarrow{f_{\theta_1}} X^1 \xrightarrow{f_{\theta_2}} \cdots
+\xrightarrow{f_{\theta_M}} X^M$$ -->
+
+Each layer enriches the previous layer's token representations, by sharing
+information across tokens (Stage 1) and features (Stage 2). Stacking layers
+allows the representations to be mixed again so that higher-level, indirect
+relationships can emerge.
 
 ## Code Example
+
+1. Her'es a small example inspecting the attention weights from a pretrained
+model.
+
+```{python}
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+
+tokenizer = AutoTokenizer.from_pretrained("textattack/bert-base-uncased-SST-2")
+model = AutoModelForSequenceClassification.from_pretrained("textattack/bert-base-uncased-SST-2")
+
+reviews = [
+    "terrible, 1 star",
+    "great, changed my life"
+]
+inputs = tokenizer(reviews, return_tensors="pt", padding=True, truncation=True)
+logits = model(**inputs).logits
+torch.softmax(logits, dim=1)
+```
+
+```{python}
+text = "the movie was not good but the acting was brilliant"
+inputs = tokenizer(text, return_tensors="pt")
+outputs = model(**inputs, output_attentions=True)
+A = outputs.attentions[0][0, 0].detach()  # layer 0, batch 0, head 0
+```
+
+```{python}
+#| echo: false
+words = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+words_indexed = [f"{w}_{i}" for i, w in enumerate(words)]
+df = attention_df(A, words_indexed, "Layer 0, Head 0")
+
+alt.Chart(df).mark_rect().encode(
+    x=alt.X("token_n_prime:N", title="n'", sort=words_indexed),
+    y=alt.Y("token_n:N", title="n", sort=words_indexed),
+    color=alt.Color("weight:Q", scale=alt.Scale(scheme="blues"))
+).properties(width=250, height=250)
+```
