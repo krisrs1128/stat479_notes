@@ -1,5 +1,5 @@
 ---
-title: "Saliency Maps"
+s"
 author: Kris Sankaran
 date: 2026-03-23
 bibliography: references.bib
@@ -66,9 +66,28 @@ won't be tested.
 \in \reals^{D}$. For example,
 
   - In language, we represent a document as a sequence of $N$ words. We could
-  one-hot encode each word into a vector $e\left(\text{word}\right) \in \reals^{V}$ of length equal to the number of terms $V$ in the vocabulary. But
-  to keep the dimensionality $D$ of the tokens manageable, we will usually apply
-  an initial linear transformation $x_{n}\left(\text{word}\right) = W e\left(\text{word}\right)$ where $W \in \reals^{D \times V}$ and $D \ll V$.
+  one-hot encode each word into a vector $e\left(\text{word}\right) \in \reals^{V}$ of length equal to the number of terms $V$ in the vocabulary.
+
+```{python}
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained("gpt2")
+tokens = tokenizer(" to be or not to be")
+tokens["input_ids"]
+```
+
+  To keep the dimensionality $D$ of the tokens manageable, we usually apply an
+  initial linear transformation $x_{n}\left(\text{word}\right) = W
+  e\left(\text{word}\right)$ where $W \in \reals^{D \times V}$ and $D \ll V$.
+
+```{python}
+import torch
+
+# V = 50257 words, D = 8 dimensions
+embed = torch.nn.Embedding(num_embeddings=50257, embedding_dim=16)
+X = embed(torch.LongTensor(tokens["input_ids"])).T
+X # notice columns 1 - 2 match 5 - 6
+```
 
   - In vision, we represent an image as a sequence of $N$ image patches. Here $D = W^{\text{patch}} \times H^{\text{patch}}$, the total number of pixels in each patch.
 
@@ -102,11 +121,12 @@ X^{0} \xrightarrow{f_{\theta_{1}}} X^{1} \xrightarrow{f_{\theta_{2}}} \dots \xri
 \end{align*}
 Like in MLPs, the parameters $\theta_{1}, \dots, \theta_{M}$ will be optimized
 to accomplish some downstream task. We omit details of this optimization, since
-the training objectives are problem-specific.
+our goal is to understand models tha thave already been trained, not train new
+models from scratch.
 
 1. **Preview**. Each block $f_{\theta_{m}}$ will have the form,
 
-  (figure from paper)
+  ![](figures/transformer_summary.png)
 
   We've seen MLP and LayerNorm steps before, though we'll consider why they are
   helpful in this context. A critical, new component is the multihead
@@ -132,11 +152,12 @@ Y^{m} = X^{m - 1}A^{m}
 \end{align*}
 
 and call it the output of stage 1. This sets the $n^{th}$ column of $Y^{m}$ to
-be a mixture of columns of $X^{m - 1}$ where the mixing weights come from
-$A^{m}$. There are unfortunately two problems,
+be a convex combination of columns of $X^{m - 1}$ where the mixing weights come
+from $A^{m}$. There are unfortunately two problems,
 
    - Where do the attention weights come from?
-   - This is not flexible enough to learn more meaningful representations.
+   - This operation can select which tokens to mix, but not what information to
+   extract from them. This will be addressed by the values matrix $V_{h}$ below.
 
   We'll resolve both issues step-by-step. To reduce the notational clutter,
   we'll suppress the $m$ superscripts for now -- the remainder of the note is
@@ -152,25 +173,49 @@ similarity according to the distance between tokens. For example,
   But this has no chance of learning long-range dependence, since it only
   attends to nearby tokens.
 
-1. **MHSA (attempt 2: angle-based similarity)**. We can use the tokens
-themselves to define attention^[This is why it is called ``self-attention.''].
-A simple approach is to use the angle between the $x_{n}$ and $x_{n}'$ vectors:
-we will attend more strongly to tokens that are closely aligned.
+1. **MHSA (attempt 2: content-based similarity)**. We can use the tokens
+themselves to define attention -- this is why it is called ``self-attention.''
+The idea is that tokens with similar representations should attend more closely
+to one another. We can measure this similarity with inner products $x_{n}^{\top}
+x_{n'}$, using a softmax so that the columns of $A$ are nonnegative and sum to
+one,
   \begin{align*}
   A_{nn'} &= \frac{\exp{x_{n}^\top x_{n^{\prime}}}}{\sum_{n' = 1}^{N} \exp{x_{n}^\top x_{n^{\prime}}}}
   \end{align*}
-  Intuitively, by layer $m$, we hope that tokens $x_{n}, x_{n'}$ with similar
-  ``meanings'' will already have representations that are in similar parts of
-  the activation space. We want those tokens to attend to one another, even if
-  they are located far apart from one another in the sequence.
+  Notice that tokens attend to each other if they have similar representations,
+  even if they are far apart from one another in the sequence.  In this way,
+  we'll be able to learn long-range dependence.
 
-  (need a picture + example to make this concrete)
+  (need a picture)
+```{python}
+A = torch.softmax(X.T @ X, dim=0)
+```
+
+```{python}
+#| echo: false
+import altair as alt
+import pandas as pd
+
+words = tokenizer.convert_ids_to_tokens(tokens["input_ids"])
+words = [f"{w.replace('Ġ', '')}_{i}" for i, w in enumerate(words)]
+
+A = torch.softmax(X.T @ X, dim=0)
+
+df = pd.DataFrame(A.detach().numpy(), columns=words, index=words)
+df = df.reset_index(names="token_n").melt(id_vars="token_n", var_name="token_n_prime", value_name="weight")
+
+alt.Chart(df).mark_rect().encode(
+    x=alt.X("token_n_prime:N", title="n'", sort=words),
+    y=alt.Y("token_n:N", title="n", sort=words),
+    color=alt.Color("weight:Q", scale=alt.Scale(scheme="blues"))
+).properties(width=200, height=200)
+```
 
 1. **MHSA (attempt 3: subspace-specific similarities)**. This approach is not
 very flexible. It imposes a universal notion of similarity between tokens. But
 in reality, there are many types of similarity that might be useful in different
-contexts. For example, ``scale'' and ''arpeggio'' might be similar in the sense
-of both being musical terms, while ``scale'' and ``fish'' might be similar in
+contexts. For example, "scale" and "arpeggio" might be similar in the sense
+of both being musical terms, while "scale" and "fish" might be similar in
 the sense of being a part of the animal. To this end, we project the tokens
 $x_{n}$ onto a subspace spanned by the $M < D$ rows of $U \in \reals^{M \times
 D}$. The projected coordinates are given by $Ux_{n}$, and their associated
@@ -181,15 +226,90 @@ similarity is,
   By using different choices of $U$, we can capture different notions of
   similarity.
 
-1. **MHSA (attempt 4: asymmetry)**. The first way we use different $U$'s is by
-breaking symmetry in the similarity measurement. Specifically, we change the formula above to
+1. To illustrate, consider a representation where the first and last four
+dimensions reflect animal and music related meanings, respectively. Scale has
+high values in both. Subspace-specific $U$'s will be able to learn different
+types of similarity. In a trained model, the matrices $U$ will be learned rather
+than manually set in this way, but the main idea is that same -- each project
+defines its own sense of similarity.
+
+```{python}
+#| echo: false
+# Hand-crafted 6-token embeddings, D=8
+import torch
+import pandas as pd
+import altair as alt
+
+U_animal = torch.zeros(4, 8)
+U_animal[:, :4] = torch.eye(4)
+
+U_music = torch.zeros(4, 8)
+U_music[:, 4:] = torch.eye(4)
+```
+
+```{python}
+test_words = ["scale", "fish", "arpeggio", "music", "random", "other"]
+X = torch.tensor([
+    [0.8, 0.9, 0.1, 0.7, 0.7, 0.8, 0.1, 0.2],  # scale: both
+    [0.9, 1.0, 0.0, 0.8, 0.0, 0.1, 0.0, 0.1],  # fish: animal only
+    [0.0, 0.1, 0.0, 0.0, 0.9, 1.0, 0.8, 0.9],  # arpeggio: music only
+    [0.1, 0.0, 0.1, 0.1, 0.8, 0.9, 0.9, 1.0],  # music: music only
+    [0.1, 0.2, 0.1, 0.0, 0.1, 0.0, 0.2, 0.1],  # random: low on both
+    [0.0, 0.1, 0.2, 0.1, 0.0, 0.2, 0.1, 0.0],  # other: low on both
+]).T
+
+# two attention matrices
+A_animal = torch.softmax((U_animal @ X).T @ (U_animal @ X), dim=0)
+A_music = torch.softmax((U_music @ X).T @ (U_music @ X), dim=0)
+```
+
+```{python}
+#| echo: false
+words_indexed = [f"{w}_{i}" for i, w in enumerate(test_words)]
+df = pd.concat([
+    attention_df(A_animal, words_indexed, "Animal-based U)"),
+    attention_df(A_music, words_indexed, "Music-based U)")
+])
+
+alt.Chart(df).mark_rect().encode(
+    x=alt.X("token_n_prime:N", title="n'", sort=words_indexed),
+    y=alt.Y("token_n:N", title="n", sort=words_indexed),
+    color=alt.Color("weight:Q", scale=alt.Scale(scheme="blues"))
+).properties(width=180, height=180).facet(
+    column=alt.Column("projection:N", title=None)
+)
+```
+
+1. **MHSA (attempt 4: asymmetry)**. Another way we use different $U$'s is to
+break symmetry in the similarity measurement. With a single $U$, the dot
+products $\left(Ux_{n}\right)^{\top}\left(U x_{n'}\right)$ are symmetric. Token
+$n$'s similarity to $n'$ always equals $n'$'s similarity to $n$. To allow
+asymmetry, we can use two different projections,
   \begin{align*}
   A_{nn'} &= \frac{\exp{\left(U_{k}x_{n}\right)^\top U_{q}x_{n^{\prime}}}}{\sum_{n' = 1}^{N}\exp{\left(U_{k}x_{n}\right)^\top U_{q}x_{n^{\prime}}}}
   \end{align*}
    In the literature, the quantities $U_{q}x$ and $U_{k}x$ are called queries
-   and keys, respectively. Token $n'$ ``asks'' (query) which of the other tokens
+   and keys, respectively. Token $n'$ "asks" (query) which of the other tokens
    $n$ are similar to it, the answer depends on whether the other token's
-   ``key'' matches it.
+   "key" matches it. In pseudocode, this is,
+
+```{python}
+Uq = torch.randn(6, 8)
+Uk = torch.randn(6, 8)
+
+A_asym = torch.softmax((Uk @ X).T @ (Uq @ X), dim=0)
+```
+
+```{python}
+#| echo: false
+alt.Chart(attention_df(A_asym, test_words, "Asymmetric attention")).mark_rect().encode(
+    x=alt.X("token_n_prime:N", title="n'", sort=words),
+    y=alt.Y("token_n:N", title="n", sort=words),
+    color=alt.Color("weight:Q", scale=alt.Scale(scheme="blues"))
+).properties(width=150, height=150).facet(
+    column=alt.Column("projection:N", title=None)
+)
+```
 
 1. **MHSA** Finally, we can consider many keys and queries. This will allow us
 to capture the different senses of ``scale'' above. Specifically, for each layer
@@ -211,9 +331,19 @@ like we defined above, we consider
 Y^{m} = \sum_{h = 1}^{H} V_{h}^{m} X^{m - 1}A_{h}^{m}
 \end{align*}
 where $V_{h}^{m} \in \reals^{D \times D}$ is a linear transformation of the
-attention-mixed input that gives some additional flexibility. In the literature
-$V_{h}$ are called ``values'' -- when the query matches a key according to the
-similarities $A_{h}$, we return the values $V_{h}^{m}X^{m - 1}$.
+attention-mixed input. Each head $h$ can specialize -- its $U_{kh}, U_{qh}$ find
+which tokens are relevant under head $h$'s notion of similarity, and its $V_h$
+determines what to extract from those tokens.
+
+1. In the literature $V_{h}$ are called "values" -- when the query matches a key
+according to the similarities $A_{h}$, we return the values $V_{h}^{m}X^{m -
+1}$. Intuitively, $A_{h}^{m}$ tells the model which tokens to "listen" to, while
+$V$ dictates what we extract from those tokens, i.e., what we actually "hear."
+For example, in the sentence "The movie was not good," the word "good" might
+attend most closely to the word "not." The token $x_{n'}^{m}$ representing "not"
+might capture many aspects of this word (e.g., it is a short word, it is common,
+...) besides the part that's relevant (it negates what follows). $V$ can learn
+to extract the negation aspect and suppress the rest.
 
 1. To summarize, we have parameters $U_{qh}^{m}, U_{kh}^{m}, V_{h}^{m}$ for each
 layer $m$ which learn the similarities between pairs of tokens and linearly
