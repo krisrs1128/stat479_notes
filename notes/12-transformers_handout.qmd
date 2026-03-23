@@ -24,6 +24,7 @@ $$
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\indic}[1]{\mathbb{1}\left\{{#1}\right\}}
 \newcommand{\Earg}[1]{\mathbb{E}\left[{#1}\right]}
+\newcommand{\exp}[1]{\text{exp}\left({#1}\right)}
 \newcommand{\Esubarg}[2]{\mathbb{E}_{#1}\left[{#2}\right]}
 $$
 :::
@@ -65,7 +66,8 @@ won't be tested.
 1. **Definition**. We view a single sample as a sequence of $N$ tokens, $x_{n}
 \in \reals^{D}$. For example,
 
-    - In language, we represent a document as a sequence of $N$ words, mapping each word to a one-hot vector $e(\text{word}) \in \reals^{V}$, where $V$ is the vocabulary size,
+    - In language, we represent a document as a sequence of $N$ words. The
+    tokenizer below converts each word to its ID in a vocabulary of size 50K.
 
    ```{python}
 #| label: tokenize-text
@@ -76,9 +78,10 @@ tokens = tokenizer(" to be or not to be")
 tokens["input_ids"]
    ```
 
-    To keep the dimensionality $D$ of the tokens manageable, we usually apply an
-    initial linear transformation $x_{n}\left(\text{word}\right) = W
-    e\left(\text{word}\right)$ where $W \in \reals^{D \times V}$ and $D \ll V$.
+    To keep the dimensionality $D$ of the tokens manageable, we associate each
+    word with a column in an embedding matrix $x_{n} = W_{\cdot,v}$ where $v \in
+    \{1, \dots, V\}$ is the word's ID in the vocabulary and $W \in \reals^{D
+    \times V}$ for $D \ll V$.
 
    ```{python}
 #| label: word-embedding
@@ -92,24 +95,26 @@ torch.round(X, decimals=2) # notice columns 1 - 2 match 5 - 6
 
     - In vision, we represent an image as a sequence of $N$ image patches. Here $D = W^{\text{patch}} \times H^{\text{patch}}$, the total number of pixels in each patch.
 
+     ![Sequence representations are useful in vision as well. Image from @dosovitskiy](figures/image_tokenization.png){width=80%}
+
 1. **Goal**. Map a token sequence $X \in \reals^{D \times N}$ to a representation useful for prediction. Specifically, we want a
 map parameterized by weights $\theta_{m}$,
 $f_{\theta_{m}}: \reals^{D \times N} \to \reals^{D \times N}$,
 \begin{align*}
   X^{m} = f_{\theta_{m}}(X^{m - 1})
 \end{align*}
-that can be applied recursively within a deep model, similarly to the ``linear
-layer + nonlinear activation'' block used in MLPs.
+that can be applied recursively within a deep model, similar to the "linear
+layer + nonlinear activation" block used in MLPs.
 
 1. **Requirements**
 
     - The map must act on the full sequence simultaneously, unlike an MLP, which processes one vector at a time.
 
-    - The map must capture long-range dependence. It must ``remember'' information
+    - The map must capture long-range dependence. It must "remember" information
     from earlier in the sequence. This is unlike GPs and traditional statistical
     models.
 
-    ![To see why long-range dependence is important, consider patterns like quotes in books or braces in code. These affect the interpretation of the text for a long time after they start.](figures/karpathy_sequences.png)
+    ![To see why long-range dependence is important, consider patterns like quotes in books or braces in code. These affect the interpretation of the text for a long time after they start. Image from @Karpathy.](figures/karpathy_sequences.png)
 
 1. **Approach**. We compose transformer blocks $f_{\theta_1}, \dots, f_{\theta_M}$ to gradually refine the sequence representation,
 \begin{align*}
@@ -121,15 +126,13 @@ focus is interpretability.
 
 1. **Preview**. Each block $f_{\theta_{m}}$ will have the form,
 
-    ![A summary of the overall transformer block from the reading.](figures/transformer_summary.png){width=60%}
+    ![A summary of the overall transformer block from the reading. Everything below the first $\bigoplus$ is Stage 1 and everything above is
+    Stage 2.](figures/transformer_summary.png){width=60%}
 
-    We've seen MLP and LayerNorm steps before, though we'll consider why they are
-    helpful in this context. A critical, new component is the multihead
-    self-attention operation (MHSA). This is what allows the transformation to
-    learn long-range dependence.
-
-    Everything below the first $\bigoplus$ is Stage 1 and everything above is
-    Stage 2.
+    We've seen MLP and LayerNorm steps before, though we'll consider why they
+    are helpful in this context. A new component is the multihead self-attention
+    operation (MHSA). This is what allows the transformation to learn long-range
+    dependence.
 
 ## Stage 1: Attention across sequence
 
@@ -146,33 +149,39 @@ token $n$ attends to token $n'$ according to the weight $A_{nn'}^{m}$.
 
    and call it the output of stage 1. This sets the $n^{th}$ column of $Y^{m}$
    to be a convex combination of columns of $X^{m - 1}$ where the mixing weights
-   come from $A^{m}$. There are unfortunately two problems,
+   come from $A^{m}$.
+
+   ![Attention mixes columns of $X^{m - 1}$ to get $Y^m$. Figure from the reading.](figures/attention_dimensions.png){width=65%}
+
+   ![Geometric interpretation of mixing columns of $X^{m - 1}$.](figures/convex_combination_attention.png){width=65%}
+
+1. There are unfortunately two problems,
 
     - Where do the attention weights come from?
     - This operation can select which tokens to mix, but not what information to
     extract from them. This will be addressed by the values matrix $V_{h}$ below.
 
-    We'll resolve both issues step-by-step. To reduce the notational clutter,
-    we'll suppress the $m$ superscripts for now -- the remainder of the note is
-    focusing on a single layer $m$.
+    We'll resolve both issues step-by-step. To simplify notation, we suppress
+    the $m$ superscripts for now -- the remainder of the note focuses on a
+    single layer $m$.
 
 1. **MHSA (attempt 1: position-only)**. A first attempt would be to define
 similarity according to the distance between tokens. For example,
 
    \begin{align*}
-   A_{nn'} &= \frac{\exp{\left|n - n'\right|}}{\sum_{n' = 1}^{N} \exp{\left|n - n'\right|}}
+   A_{nn'} &= \frac{\exp{\left|n - n'\right|}}{\sum_{n^{''} = 1}^{N} \exp{\left|n^{''} - n^{\prime}\right|}}
    \end{align*}
    This can't learn long-range dependence since weights decay with distance.
 
 1. **MHSA (attempt 2: content-based similarity)**. We use the tokens themselves
 to define attention. Tokens with similar representations attend to one another.
-We can measure this similarity with inner products $x_{n}^{\top} x_{n'}$, using
-a softmax so that the columns of $A$ are nonnegative and sum to one,
+We can measure this similarity with inner products $x_{n}^{\top} x_{n'}$,
 \begin{align*}
-  A_{nn'} &= \frac{\exp{x_{n}^\top x_{n^{\prime}}}}{\sum_{n' = 1}^{N} \exp{x_{n}^\top x_{n^{\prime}}}}
+  A_{nn'} &= \frac{\exp{x_{n}^\top x_{n^{\prime}}}}{\sum_{n^{\prime\prime}= 1}^{N} \exp{x_{n^{\prime\prime}}^\top x_{n^\prime}}}
 \end{align*}
-Similarity is now content (not position) based, so long-range dependence is
-possible.
+Similarity is now content (not position) based.
+
+   _Exercise: Can this version of attention learn long-range dependence? Explain your reasoning._
 
    ```{python}
 #| label: basic-attention
@@ -200,6 +209,8 @@ alt.Chart(df).mark_rect().encode(
 ).properties(width=200, height=200)
    ```
 
+   ![A geometric representation of content-based similarity. A high inner product corresponds to a small angle.](figures/content_similarity.png){width=60%}
+
 1. **MHSA (attempt 3: subspace-specific similarities)**. This inner product imposes a single notion of similarity. In reality, multiple types exist. For example, "scale" and "arpeggio" might be similar in the sense
 of both being musical terms, while "scale" and "fish" might be similar in
 the sense of being a part of the animal. To this end, we project the tokens
@@ -207,14 +218,14 @@ $x_{n}$ onto a subspace spanned by the $M < D$ rows of $U \in \reals^{M \times
 D}$. The projected coordinates are given by $Ux_{n}$, and their associated
 similarity is,
 \begin{align*}
-  A_{nn'} &= \frac{\exp{\left(Ux_{n}\right)^\top Ux_{n^{\prime}}}}{\sum_{n' = 1}^{N}\exp{\left(Ux_{n}\right)^\top Ux_{n^{\prime}}}}
+  A_{nn'} &= \frac{\exp{\left(Ux_{n}\right)^\top Ux_{n^{\prime}}}}{\sum_{n^{\prime\prime} = 1}^{N}\exp{\left(Ux_{n^{\prime\prime}}\right)^\top Ux_{n^{\prime}}}}
 \end{align*}
 
 1. To illustrate, consider a representation where the first and last four
 dimensions reflect animal and music related meanings, respectively. Scale has
 high values in both. Subspace-specific $U$'s will be able to learn different
 types of similarity. In a real model, $U$ is learned, not set manually, but the
-idea is the same -- each projection induces its own similarity
+idea is the same (each projection induces its own similarity).
 
    ```{python}
 #| label: subspace-setup
@@ -272,16 +283,16 @@ alt.Chart(df).mark_rect().encode(
 )
    ```
 
+   ![A geometric representation of subspace-based similarity. Different $U_{h}$ correspond to different subspaces.](figures/subspace_similarity.png){width=60%}
+
 1. **MHSA (attempt 4: asymmetry)**. With a single $U$, similarity is symmetric $A_{nn'} = A_{n'n}$. Separate projections $U_k, U_q$ break this symmetry,
 \begin{align*}
-  A_{nn'} &= \frac{\exp{\left(U_{k}x_{n}\right)^\top U_{q}x_{n^{\prime}}}}{\sum_{n' = 1}^{N}\exp{\left(U_{k}x_{n}\right)^\top U_{q}x_{n^{\prime}}}}
+  A_{nn'} &= \frac{\exp{\left(U_{k}x_{n}\right)^\top U_{q}x_{n^{\prime}}}}{\sum_{n^{\prime\prime} = 1}^{N}\exp{\left(U_{k}x_{n^{\prime\prime}}\right)^\top U_{q}x_{n^{\prime}}}}
 \end{align*}
 In the literature, the quantities $U_{q}x$ and $U_{k}x$ are called queries
-and keys, respectively.
-
-   Token $n'$ asks the query $U_q x_{n'}$ and token $n$ presents a key $U_k
-   x_n$. Attention is high when the key aligns with the query. In pseudocode,
-   this is,
+and keys, respectively. Token $n'$ "asks" the query $U_q x_{n'}$ and token $n$
+presents a key $U_k x_n$. Attention is high when the key aligns with the query.
+In pseudocode, this is,
 
    ```{python}
 #| label: asymmetric-attention
@@ -303,6 +314,8 @@ alt.Chart(attention_df(A_asym, test_words, "Asymmetric attention")).mark_rect().
 )
    ```
 
+   _Exercise: Notice that in atempt 3, the example heatmap visualization is **not** symmetric. Why not?_
+
 1. **MHSA** Finally, we can consider many keys and queries. This
 can capture the different senses of "scale" above. Specifically, for each layer
 $m$, we define $H$ matrices,
@@ -312,9 +325,10 @@ U_{kh} \in \reals^{M \times D} \qquad U_{qh} \in \reals^{M \times D}
 which allows us to create $H$ different versions of the attention matrices
 $A_{h}$,
 \begin{align*}
-\left[A_{h}\right]_{nn'} &= \frac{\left(U_{kh}x_{n}\right)^\top\left(U_{qh}x_{n'}\right)}{\sum_{n' = 1}^{N}\left(U_{kh}x_{n}\right)^\top\left(U_{qh}x_{n'}\right)}
+\left[A_{h}\right]_{nn'} &= \frac{\left(U_{kh}x_{n}\right)^\top\left(U_{qh}x_{n'}\right)}{\sum_{n^{\prime\prime} = 1}^{N}\left(U_{kh}x_{n^{\prime\prime}}\right)^\top\left(U_{qh}x_{n^{\prime}}\right)}
 \end{align*}
-Then, instead of simply using $Y^{m} = X^{m - 1}A^{m}$ like we defined above, we
+Then at layer $m$, instead of simply using $Y^{m} = X^{m - 1}A^{m}$ like we
+defined above, we
 consider
 \begin{align*}
 Y^{m} = \sum_{h = 1}^{H} V_{h}^{m} X^{m - 1}A_{h}^{m}
@@ -326,12 +340,14 @@ determines what to extract from those tokens.
 
 1. In the literature $V_{h}$ are called "values" -- when the query matches a key
 according to the similarities $A_{h}$, we return the values $V_{h}^{m}X^{m -
-1}$. $A_h^m$ selects which tokens to mix and $V_h^m$ selects what to extract from them.
-For example, in the sentence "The movie was not good," the word "good" might
-attend most closely to the word "not." The token $x_{n'}^{m}$ representing "not"
-might capture many aspects of this word (e.g., it is a short word, it is common,
-...) besides the part that's relevant (it negates what follows). $V$ can learn
-to extract the negation aspect and suppress the rest.
+1}$. $A_h^m$ selects which tokens to mix and $V_h^m$ selects what to extract
+from them.  For example, in the sentence "The movie was not good," the word
+"good" might attend most closely to the word "not." The token $x_{n'}^{m - 1}$
+representing "not" might capture many aspects of this word (e.g., it is a short
+word, it is common, ...) besides the part that's relevant (it negates what
+follows). $V$ can learn to extract the negation aspect and suppress the rest.
+
+   ![Interpretation of $V_{h}^{m}$ focusing on particular coordinates of $X^{m - 1}$.](figures/negation_interpretation.png){width=65%}
 
 1. To summarize, we have parameters $U_{qh}^{m}, U_{kh}^{m}, V_{h}^{m}$ for each
 layer $m$ which learn the similarities between pairs of tokens and linearly
@@ -340,46 +356,53 @@ layer $m$.
 
 ## Stage 2: MLP across features
 
-1. Stage 1 learns dependence across tokens
-but treats each feature separately. Every row of $X^{m - 1}$ is mixed
-by the same weights $A^m$. Stage 2 applies a per-token nonlinear
-transformation that learns interactions across feature dimensions.
+1. Stage 1 learns dependence across tokens but treats each feature separately
+(every row of $X^{m - 1}$ is mixed by the same weights $A^m$). Stage 2 applies a
+per-token nonlinear transformation that learns interactions across feature
+dimensions.
 
 1. Specifically, Stage 1 returns,
-$$Y^m = X^{m-1} + \text{MHSA}(\bar{X}^{m-1})$$
-where $\bar{X}^{m-1} = \text{LayerNorm}(X^{m-1})$
-centers/scales each token's representation (with learned shift and scale
-parameters, as discussed in the last note). Stage 2 then modifies each token's
-features,
-$$x_n^m = y_n^m + \text{MLP}(\bar{y}_n^m)$$
-where we similarly define the normalization $\bar{Y}^m = \text{LayerNorm}(Y^m)$
-and use lower case symbols to extract the $n^{th}$ columns of $X^m$ and $Y^m$. Expressing this as pseudocode,
+\begin{align*}
+Y^m = X^{m-1} + \text{MHSA}(\bar{X}^{m-1})
+\end{align*}
+where $\bar{X}^{m-1} = \text{LayerNorm}(X^{m-1})$ centers/scales each token's
+representation (with learned shift and scale parameters, as discussed in the
+last note). Stage 2 then modifies each token's features,
+   \begin{align*}
+   x_n^m = y_n^m + \text{MLP}(\bar{y}_n^m)
+   \end{align*}
+   where we similarly normalize $\bar{Y}^m = \text{LayerNorm}(Y^m)$ and use lower
+   case symbols to denote the $n^{th}$ columns of $X^m$ and $Y^m$. Notice only
+   the correction needs LayerNorm.
+
+   *Exercise: What are the dimensions of $x_{n}^{m}$? For a single layer, how many times do we have to execute the MLP?*
+
+1. Expressing this as pseudocode,
 
    ```{python}
-#| label: transformer-block
-#| eval: false
-# Stage 1: mix across tokens
-X_norm = layer_norm(X)
-Y = X + mhsa(X_norm)
+   #| label: transformer-block
+   #| eval: false
+   # Stage 1: mix across tokens
+   X_norm = layer_norm(X)
+   Y = X + mhsa(X_norm)
 
-# Stage 2: mix across features
-Y_norm = layer_norm(Y)
-X_next = Y + mlp(Y_norm)
+   # Stage 2: mix across features
+   Y_norm = layer_norm(Y)
+   X_next = Y + mlp(Y_norm)
    ```
 
-1. Both stages use residual connections, meaning that output = input +
-correction.  Notice only the correction applies LayerNorm. The reason for using
-these connections is that, at initialization, the MLP and MHSA weights are
-small, so both corrections are near zero and the entire block acts as
-essentially the identity. Training gradually learns the corrections. This is
-reminiscent of boosting, where each training step refines the residuals of the
-current fit.
+1. Both stages use residual connections, meaning that `output = input +
+correction`. The reason for using these connections is that, at initialization,
+the MLP and MHSA weights are small, so both corrections are near zero and the
+entire block acts as essentially the identity. Training gradually learns the
+corrections. This is reminiscent of boosting, where each training step refines
+the residuals of the current fit.
 
 1. Putting everything together, we arrive again at Figure 7 from the reading,
 
-    ![The same summary from before. Each component should be clear.](figures/transformer_summary.png){width=60%}
+    ![The same summary from before. We've now gone over each component.](figures/transformer_summary.png){width=60%}
 
-   This is the map $f_{\theta_{m}} : \reals^{D \times N} \to \reals^{D \times N}$ from the setup, wiht parameters $\theta_m$ containing hte query, key, and value matrices from MHSA, the MLP weights, adn teh scale/shift parameters for the two LayerNorm steps. Stacking $M$ of these blocks gives a full transformer model.
+   This is the map $f_{\theta_{m}} : \reals^{D \times N} \to \reals^{D \times N}$ from the setup, wiht parameters $\theta_m$ containing hte query, key, and value matrices from MHSA, the MLP weights, adn the scale/shift parameters for the two LayerNorm steps. Stacking $M$ of these blocks gives a full transformer model.
 
    \begin{align*}
    X^0 \xrightarrow{f_{\theta_1}} X^1 \xrightarrow{f_{\theta_2}} \cdots \xrightarrow{f_{\theta_M}} X^M
@@ -390,11 +413,14 @@ current fit.
    representations to be mixed again so that higher-level, indirect
    relationships can emerge.
 
+    _Exercise: Explain each part of the figure above. What are the variables' dimensions? What do the arrows represent?_
+
 ## Code Example
 
-1. Here's a small example inspecting the attention weights from a pretrained
-model, downloaded from the HuggingFace repository of pretrained models. The
-`tokenizer` object converts free character strings into sequences of tokens.
+1.$^{\dagger}$ Here's a small example inspecting the attention weights from a
+pretrained model, downloaded from the HuggingFace repository of pretrained
+models. The `tokenizer` object converts free character strings into sequences of
+tokens.
 
    ```{python}
 #| echo: false
@@ -433,7 +459,7 @@ logits = model(**inputs).logits
 torch.softmax(logits, dim=1)
    ```
 
-1. To understand the attention matrix, we can use the `.attentions` attribute in
+1.$^{\dagger}$ To understand the attention matrix, we can use the `.attentions` attribute in
 the trained model. The way these matrices are stored will differ from model to
 model. But conceptually they will always include a collection of heads that
 reweight the $n$ sequence inputs to one another.
@@ -461,7 +487,7 @@ alt.Chart(df).mark_rect().encode(
 ).properties(width=350, height=350)
    ```
 
-1. Just out of interest, let's study some of the hidden states from this model.
+1.$^{\dagger}$ Just out of interest, let's study some of the hidden states from this model.
 The function below loops over the input reviews, converts each into a sequence
 of tokens, and extracts the final layer's representation $X^{M}$.
 
