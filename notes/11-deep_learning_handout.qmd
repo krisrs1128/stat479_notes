@@ -62,9 +62,9 @@ tested.
 ## Setup
 
 **Goal.** Given examples $\{\left({x_i, y_i}\right)\}_{i = 1}^{N}$, learn a
-*predictor $f : x \mapsto y$. In fact, the ultimate goal is more ambitious -- we
-*want a _generic recipe_ for automatically learning predictors automatically,
-*regardless of whether the inputs are tables, images, sentences, ...
+predictor $f : x \mapsto y$. In fact, the ultimate goal is more ambitious -- we
+want a _generic recipe_ for automatically learning predictors automatically,
+regardless of whether the inputs are tables, images, sentences, ...
 
 **Requirements.** The recipe must,
 
@@ -95,7 +95,7 @@ K\}$ become one-hot encoded vectors, so tensors capture standard statistics
 problems. RGB images are 3D tensors (Height $\times$ Width $\times$ Color
 Channel), and video adds a Time axis, so their tensors are 4D. A document is a
 Vocabulary $\times$ Document tensor where each word is one-hot encoded. Though,
-document lengths vary, so a dataset contains tensors of differnet sizes.
+document lengths vary, so a dataset contains tensors of different sizes.
 
     ![](figures/tensor_encoding_image.png){width=32%}
     ![](figures/tensor_encoding_video.png){width=32%}
@@ -110,7 +110,7 @@ arithmetic in parallel, so batching lets us optimize over many examples at once.
 
 1. We want a general recipe for mapping tensors to predictions. This recipe will
 be made from composable modules. We start with the simplest case: mapping a
-vecor $x \in \reals^D$ to a binary label $y \in \{0, 1\}$ using the perceptron (@Rosenblatt1958).
+vector $x \in \reals^D$ to a binary label $y \in \{0, 1\}$ using the perceptron (@Rosenblatt1958).
 
     ![Layers of a simple perceptron.](figures/perceptron_layers.png){width=30%}
 
@@ -165,14 +165,15 @@ activations,
 x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g} \hat{y}
 \end{align*}
 where each linear layer is,
-are mappings
 \begin{align}
 f_{l}\left(v\right) &= W_{l}v + b_{l} \space & \quad\quad \triangleleft \quad \text{layer } \ell \text{ weights and biases}.
 \end{align}
 Here, $W_{l} \in \reals^{D_{l + 1} \times D_{l}}$, $b_{l} \in \reals^{D_{l +
-1}}$ and $g$ is a nonlinear activation function applied elementwise.  Note that
-the argument is a generic $v \in \reals^{D_{l}}$. At the first layer, this is
-$x$, but at deeper layers, it is the current hidden representation $h^{l - 1}$.
+1}}$ and $g$ is a nonlinear activation function applied elementwise, like
+$\left[g\left(x\right)\right]_{d} =\max(x_{d},0)$. Note that the
+argument for $f$ is a generic $v \in \reals^{D_{l}}$. At the first layer, this
+is $x$, but at deeper layers, it is the current hidden representation $h^{l -
+1}$.
 
     ![Representation of transformations in a two layer MLP.](figures/mlp_layers.png){width=25%}
 
@@ -272,12 +273,11 @@ improve the loss landscape for stochastic gradient descent.
 
     ![The effect of $\ell^2$ normalization on the input tensor's data distribution.](figures/mapping_l2.png){width=30%}
 
-    - **Layer Norm**. Like $\ell^2$ normalization, but both centers scales the $D$ coordinates of a single input,
-    its neurons,
+    - **Layer Norm**. Like $\ell^2$ normalization, but both centers and scales the $D$ coordinates of a single input,
     \begin{aligned}
     \mu &= \frac{1}{D} \sum_{d=1}^D x_{\text{in}}[d]\\
     \sigma^2 &= \frac{1}{D} \sum_{d=1}^D \left(x_{\text{in}}[d] - \mu\right)^2\\
-    x_{\text{out}}[d] &= \gamma \frac{x_{\text{in}}[d] - \mu}{\sigma} + \beta
+    x_{\text{out}}[d] &= \gamma_{d} \frac{x_{\text{in}}[d] - \mu}{\sigma} + \beta_{d}
     \end{aligned}
     This is like $\ell^2$ normalization, processing each sample independently
     without coupling across batches. Like batch normalization, the learnable
@@ -290,8 +290,8 @@ matched to the prediction target $y$.
 
     - Softmax Layer. Maps an activation to a probability distribution over $K$ classes,
     \begin{aligned}
-      x_{\text{out}}[d] &= \frac{e^{-\tau x_{\text{in}}[d]}}
-        {\sum_{k=1}^K e^{-\tau x_{\text{in}}[k]}}
+      x_{\text{out}}[d] &= \frac{e^{\tau x_{\text{in}}[d]}}
+        {\sum_{k=1}^K e^{\tau x_{\text{in}}[k]}}
     \end{aligned}
     The output can support either prediction (argmax $\to$ class label) or
     sampling (draw from the distribution of plausible outputs). The temperature
@@ -299,7 +299,7 @@ matched to the prediction target $y$.
     sharpen the distribution towards the most probable class, small $\tau$
     flatten it towards the uniform, resulting in more diverse samples.
 
-    - Image rescaling For image generation, map activations to the pixel range
+    - Image rescaling. For image generation, map activations to the pixel range
     $\left[0, 255\right]$
     \begin{aligned}
       x_{\text{out}}[d] &= 255*\text{sigmoid}(x_{\text{in}}[d])
@@ -323,7 +323,7 @@ are interchangeable parts, like lego blocks.
     e. Learned abstractions -- Networks automatically learn useful intermediate representations.
 
 1. Point (a) also makes deep networks difficult to interpret. We can't
-understand what a network will do with a new input $x$ by inspecting $theta$
+understand what a network will do with a new input $x$ by inspecting $\theta$
 directly. We have to run the computation.
 
 1. $^\dagger$ Property (e) deserves closer consideration. Each layer transforms
@@ -338,7 +338,7 @@ nonlinear boundary in the input space $x$ becomes linearly separable by $h^{L -
 patterns. E.g., in image classification, they learn pixels $\to$ edges $\to$
 parts $\to$ objects. Traditionally, abstract features were hand-engineered
 (e.g., SIFT descriptors in computer vision @Lowe1999). That networks discover
-them from data alone is one fo the central phenomena associated with deep
+them from data alone is one of the central phenomena associated with deep
 learning, and we will spend several weeks studying exactly what "learned
 abstraction" really means.
 
@@ -423,7 +423,7 @@ for epoch in range(100):
    ```
 
 1. I've hidden some tedious code to create a fine grid along the data domain,
-stored in the tensor `X_tensor`, but the block below runs the fitted model on
+stored in the tensor `X_grid`, but the block below runs the fitted model on
 each of those test points by calling the `model` object. The output has two
 columns, corresponding to predicted probabilities for the two classes; we only
 visualize one class. Note that we converted the output to a numpy array to make
