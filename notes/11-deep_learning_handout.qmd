@@ -54,7 +54,7 @@ set.seed(2026)
 use_condaenv("stat479_week11")
 ```
 
-_Readings: [1](https://visionbook.mit.edu/neural_nets.html) (sections 12.1 - 12.7, but skip 12.5.2 - 12.5.3), [2](https://docs.pytorch.org/tutorials/beginner/basics/intro.html#learn-the-basics) (optional)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/11-deep_learning_overview.qmd)_
+_Readings: [1](https://visionbook.mit.edu/neural_nets.html) (sections 12.1 - 12.7, but skip 12.5.2 - 12.5.3), [2](https://docs.pytorch.org/tutorials/beginner/basics/intro.html#learn-the-basics) (optional)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/11-deep_learning_handout.qmd)_
 
 Items marked $^{\dagger}$ are not in the required reading and will not be
 tested.
@@ -167,7 +167,7 @@ x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g
 where each linear layer is,
 are mappings
 \begin{align}
-f_{l}\left(v\right) &= W_{l}v + b_{l} \space & \quad\quad \triangleleft \quad \text{layer} \ell \text{ weights and biases}.
+f_{l}\left(v\right) &= W_{l}v + b_{l} \space & \quad\quad \triangleleft \quad \text{layer } \ell \text{ weights and biases}.
 \end{align}
 Here, $W_{l} \in \reals^{D_{l + 1} \times D_{l}}$, $b_{l} \in \reals^{D_{l +
 1}}$ and $g$ is a nonlinear activation function applied elementwise.  Note that
@@ -205,7 +205,7 @@ so that we can continue mixing increasingly complex classifiers.
 
     - **Parameters** $\theta = \{W_l, b_l\}_{l = 1}^{L}$ are learned from the
     full data $\{x_i, y_i\}$. They are shared across all inputs.
-    - **Activations** are intermediate representations of a singel input $x$ as
+    - **Activations** are intermediate representations of a single input $x$ as
     it travels through the network. We distinguish preactivations $z^l =
     f^l\left(h^{l - 1}\right)$ from postactivations $h^l = g(z^l)$ depending
     on whether the nonlinearity $g$ has been applied.

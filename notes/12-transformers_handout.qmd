@@ -417,7 +417,7 @@ the residuals of the current fit.
 
 ## Code Example
 
-1.$^{\dagger}$ Here's a small example inspecting the attention weights from a
+1. $^{\dagger}$ Here's a small example inspecting the attention weights from a
 pretrained model, downloaded from the HuggingFace repository of pretrained
 models. The `tokenizer` object converts free character strings into sequences of
 tokens.
@@ -459,7 +459,7 @@ logits = model(**inputs).logits
 torch.softmax(logits, dim=1)
    ```
 
-1.$^{\dagger}$ To understand the attention matrix, we can use the `.attentions` attribute in
+1. $^{\dagger}$ To understand the attention matrix, we can use the `.attentions` attribute in
 the trained model. The way these matrices are stored will differ from model to
 model. But conceptually they will always include a collection of heads that
 reweight the $n$ sequence inputs to one another.
@@ -487,7 +487,7 @@ alt.Chart(df).mark_rect().encode(
 ).properties(width=350, height=350)
    ```
 
-1.$^{\dagger}$ Just out of interest, let's study some of the hidden states from this model.
+1. $^{\dagger}$ Just out of interest, let's study some of the hidden states from this model.
 The function below loops over the input reviews, converts each into a sequence
 of tokens, and extracts the final layer's representation $X^{M}$.
 
