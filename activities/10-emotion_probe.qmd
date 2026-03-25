@@ -25,7 +25,7 @@ Large language models have shown a surprising ability to recognize emotions in
 text. Since these models already shape the information ecosystem and could
 influence real-world decisions (e.g., its use for
 [therapy](https://aclanthology.org/2023.acl-long.555/), or its potential to
-[manipulate](https://actu.epfl.ch/news/ai-s-new-power-of-persuasion-it-can-change-your-mi/),),
+[manipulate](https://actu.epfl.ch/news/ai-s-new-power-of-persuasion-it-can-change-your-mi/)),
 there is active interest in understanding how exactly this property emerges.
 
 @taketal studied this question using mechanistic interpretability, an approach
@@ -143,6 +143,8 @@ hidden = extract_hidden_states(
 #| echo: false
 hidden = torch.load("../data/hidden_states.pt", weights_only=False)
 ```
+
+![](figures/emotion_probe_overview.png){width=95%}
 
 ## Train Probes
 
