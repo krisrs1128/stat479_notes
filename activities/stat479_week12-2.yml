@@ -155,4 +155,4 @@ dependencies:
       - xxhash==3.6.0
       - xyzservices==2025.11.0
       - yarl==1.22.0
-prefix: /opt/miniconda3/envs/env17
+prefix: /opt/miniconda3/envs/stat479_week122
