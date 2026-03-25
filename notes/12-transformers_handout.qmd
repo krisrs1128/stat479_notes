@@ -93,7 +93,7 @@ X = embed(torch.LongTensor(tokens["input_ids"])).T
 torch.round(X, decimals=2) # notice columns 1 - 2 match 5 - 6
    ```
 
-    - In vision, we represent an image as a sequence of $N$ image patches. Here $D = W^{\text{patch}} \times H^{\text{patch}}$, the total number of pixels in each patch.
+    - In vision, we represent an image as a sequence of $N$ image patches. Here $D = \text{patch width} \times \text{patch height}$, the total number of pixels in each patch.
 
      ![Sequence representations are useful in vision as well. Image from @dosovitskiy](figures/image_tokenization.png){width=80%}
 
@@ -169,7 +169,7 @@ token $n$ attends to token $n'$ according to the weight $A_{nn'}^{m}$.
 similarity according to the distance between tokens. For example,
 
    \begin{align*}
-   A_{nn'} &= \frac{\exp{\left|n - n'\right|}}{\sum_{n^{''} = 1}^{N} \exp{\left|n^{''} - n^{\prime}\right|}}
+   A_{nn'} &= \frac{\exp{-\left|n - n'\right|}}{\sum_{n^{''} = 1}^{N} \exp{-\left|n^{''} - n^{\prime}\right|}}
    \end{align*}
    This can't learn long-range dependence since weights decay with distance.
 

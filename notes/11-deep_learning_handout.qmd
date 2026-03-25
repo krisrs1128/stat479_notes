@@ -90,12 +90,13 @@ with output $y$. Fit $\theta_l$ by minimizing a loss function.
 1. We can often represent data as $D$-dimensional tensors (multidimensional
 arrays). Vectors and matrices are the $D = 1$ and $D = 2$ cases.
 
-1. This works across many problem contexts. E.g., class labels $y_i \in \{1, \dots,
-K\}$ become one-hot encoded vectors, so tensors capture standard statistics
-problems. RGB images are 3D tensors (Height $\times$ Width $\times$ Color
-Channel), and video adds a Time axis, so their tensors are 4D. A document is a
-Vocabulary $\times$ Document tensor where each word is one-hot encoded. Though,
-document lengths vary, so a dataset contains tensors of different sizes.
+1. This works across many problem contexts. E.g., class labels $y_i \in \{1,
+\dots, K\}$ become one-hot encoded vectors, so tensors capture standard
+statistics problems. RGB images are 3D tensors (Height $\times$ Width $\times$
+Color Channel), and video adds a Time axis, so their tensors are 4D. A document
+is a Vocabulary $\times$ Document Length tensor where each word in the document
+is one-hot encoded. Though, document lengths vary, so a dataset contains tensors
+of different sizes.
 
     ![](figures/tensor_encoding_image.png){width=32%}
     ![](figures/tensor_encoding_video.png){width=32%}
@@ -162,7 +163,7 @@ classification, we compose multiple layers, giving the multilayer perceptron
 1. **Two Layers ($L = 2$).** The simplest MLP alternates linear maps with nonlinear
 activations,
 \begin{align*}
-x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g} \hat{y}
+x \xrightarrow{f_1} z^1 \xrightarrow{g_1} h^1 \xrightarrow{f_2} z^2 \xrightarrow{g_2} \hat{y}
 \end{align*}
 where each linear layer is,
 \begin{align}
@@ -196,7 +197,7 @@ boundaries.
 
 1. **Deeper models**. The $L$-layer MLP repeats the pattern,
 \begin{align*}
-x \xrightarrow{f_1} z^1 \xrightarrow{g} h^1 \xrightarrow{f_2} \dots \xrightarrow{g} h^{L - 1} \xrightarrow{g} \hat{y}
+x \xrightarrow{f_1} z^1 \xrightarrow{g_1} h^1 \xrightarrow{f_2} \dots \xrightarrow{g_{L}} h^{L} \xrightarrow{g_{\text{out}}} \hat{y}
 \end{align*}
 so that we can continue mixing increasingly complex classifiers.
 
@@ -211,13 +212,13 @@ so that we can continue mixing increasingly complex classifiers.
     f^l\left(h^{l - 1}\right)$ from postactivations $h^l = g(z^l)$ depending
     on whether the nonlinearity $g$ has been applied.
 
-1. Training adjusts $\theta$ so that the final representations $h^{L - 1}$ are
+1. Training adjusts $\theta$ so that the final representations $h^{L}$ are
   predictive of $y$.
 
     ![Distinction between parameters and activations (Credit to Torralba et al.).](figures/params_vs_activations.png){width=70%}
 
-1. If $g$ is differentiable (almost everywhere), the entire network $f = g \circ f_{L - 1}
-\circ \dots \circ g \circ f_{1}$ is a composition of nearly smooth
+1. If $g$ is differentiable (almost everywhere), the entire network $f = g_{\text{out}} \circ f_{L}
+\circ \dots \circ g_{1} \circ f_{1}$ is a composition of nearly smooth
 smooth functions. The result remains nearly smooth, meaning we can compute
 $\nabla_{\theta} L$ and minimize the loss using stochastic gradient descent.
 
