@@ -3,16 +3,18 @@ title: "Emotion in LLM Representations"
 author: Kris Sankaran
 date: 2026-03-25
 bibliography: references.bib
-jupyter: env17
 format:
   html:
     embed-resources: true
-    html-math-method: katex
+    html-math-method: mathjax
+    fig-align: center
 execute:
     echo: true
     message: false
     warning: false
-    cache: false
+    cache: true
+    eval: true
+
 ---
 
 _[Notebook](https://github.com/krisrs1128/stat479_notes/blob/master/activities/10-emotion_probe.qmd), [Helpers](https://github.com/krisrs1128/stat479_notes/blob/master/activities/emotion_probe_helpers.py), [Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/activities/stat479_week12-2.yml)_
@@ -39,6 +41,12 @@ regression on the extracted activations and measured how well it predicted the
 emotion label. When a layer led to a large increase in high classification
 accuracy, the authors concluded that important emotion recognition "knowledge"
 was captured in that layer.
+
+```{r}
+#| echo: false
+library(reticulate)
+use_condaenv("env17")
+```
 
 ```{python}
 #| echo: false
