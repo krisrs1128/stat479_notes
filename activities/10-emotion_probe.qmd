@@ -1,0 +1,198 @@
+---
+title: "Emotion in LLM Representations"
+author: Kris Sankaran
+date: 2026-03-25
+bibliography: references.bib
+format:
+  html:
+    embed-resources: true
+    html-math-method: katex
+execute:
+    echo: true
+    message: false
+    warning: false
+    cache: false
+---
+
+_[Notebook](https://github.com/krisrs1128/stat479_notes/blob/master/activities/10-emotion_probe.qmd), [Helpers]()_
+
+## Motivation
+
+Large language models have shown a surprising ability to recognize emotions in
+text. Since these models already shape the information ecosystem and could
+influence real-world decisions, there is active interest in understanding how
+exactly this property emerges.
+
+
+@taketal studied this question using mechanistic interpretability, an approach
+we will study in depth during the last two weeks of the course. The main idea is
+to identify where the model's knowledge of a fact/ability to accomplish a
+particular task is localized. An analogy is to how fMRI helps show which parts
+of the human brain are active during particular cognitive processes.
+
+They extracted activations at intermediate layers of several public LLMs when
+applied to the crowd-enVENT dataset, a collection of 6,800 short texts labeled
+with one of 13 emotion classes. For each layer, they trained a logistic
+regression on the extracted activations and measured how well it predicted the
+emotion label. When a layer led to a large increase in high classification
+accuracy, the authors concluded that important emotion recognition "knowledge"
+was captured in that layer.
+
+## Extracting Hidden States
+
+```{python}
+#| echo: false
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath('')))
+```
+
+## Prepare Data
+
+First, let's load the packages we will use. The helper functions are defined in
+the `emotion_probe_helpers.py` file linked at the top of this notebook.
+
+```{python}
+import torch
+import numpy as np
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from emotion_probe_helpers import (
+    load_envent,
+    extract_hidden_states,
+    train_probes
+)
+```
+
+The main parameters of this script are included below. We refer mainly to tokens
+at the end of the input text, since the emotional content of the snippet should
+be recognizable by then.
+
+```{python}
+DATA_PATH = 'https://zenodo.org/records/18371236/files/enVent_gen_Data.csv?download=1'
+MODEL_ID = 'meta-llama/Llama-3.2-1B-Instruct'
+
+# last word, second to last word, ...
+TOKEN_POSITIONS = [-1, -2, -3, -4, -5]
+BATCH_SIZE = 4
+DEVICE = 'mps' if torch.backends.mps.is_available() else 'cpu'
+```
+
+The block below reads the data and counts the number of samples per emotion
+class.
+
+```{python}
+df = load_envent(DATA_PATH)
+df['emotion'].value_counts()
+```
+
+We can also print a few random samples.
+
+```{python}
+ix = np.random.choice(len(df), size=10, replace=False)
+df.iloc[ix, [1, -1]].values
+```
+
+## Extract Activations
+
+Next, let's load the model from the `transformers` package. Llama is a popular
+open-weight model pretrained on an internet-scale corpus.
+
+```{python}
+tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_ID,
+    device_map=DEVICE,
+)
+model.eval()
+```
+
+Here are the inputs $x_i$ and targets $y_i$ of interest.
+
+```{python}
+texts  = df['prompt'].tolist()
+labels = df['emotion_id'].to_numpy()
+```
+
+Probing requires activations at every hidden layer, not just the final output.
+The function below gets these. It takes about 10 minutes to run, since the model
+is large (1 billion parameters) and inference is slow.
+
+```{python}
+#| eval: false
+hidden = extract_hidden_states(
+    texts,
+    model,
+    tokenizer,
+    device=DEVICE,
+    token_positions=TOKEN_POSITIONS,
+    batch_size=BATCH_SIZE,
+)
+
+```
+
+```{python}
+#| echo: false
+hidden = torch.load("../data/hidden_states.pt", weights_only=False)
+```
+
+## Train Probes
+
+Once we have the hidden states, we train a small multiclass logistic regression
+model on each layer, using the hidden state as the predictor and the emotion
+label as the response.
+
+```{python}
+accuracy = train_probes(hidden, labels, token_positions=TOKEN_POSITIONS)
+```
+
+```{python}
+#| echo: false
+accuracy = torch.load("../data/probe_accuracy.pt", weights_only=False)
+```
+
+We can now visualize classification accuracy across layers — this corresponds to
+Figure 2 in @taketal. The main finding is that performance rises sharply in the
+middle layers and then plateaus, meaning that emotion recognition is localized
+to the middle of the network. The study found this pattern across many public
+LLMs.
+
+```{python}
+#| echo: false
+import pandas as pd
+import altair as alt
+
+df = pd.DataFrame(
+    [{"layer": layer, "token_position": pos, "accuracy": acc}
+     for layer, positions in accuracy.items()
+     for pos, acc in positions.items()]
+)
+
+alt.Chart(df).mark_rect().encode(
+    x=alt.X("layer:O", title="Layer"),
+    y=alt.Y("token_position:O", title="Token Position", sort="descending"),
+    color=alt.Color("accuracy:Q", scale=alt.Scale(scheme="blues")),
+    tooltip=["layer", "token_position", alt.Tooltip("accuracy:Q", format=".3f")]
+).properties(
+    title=f"Emotion probe accuracy — {MODEL_ID.split('/')[-1]}",
+    width=300,
+    height=150
+)
+```
+
+A sanity check -- the classification accuracy here is much better than random.
+
+```{python}
+pos = -1
+print(f'Accuracy at token {pos} by layer:')
+
+for l in range(model.config.num_hidden_layers):
+    print(f'  Layer {l+1:2d}: {accuracy[l][pos]:.3f}')
+```
+
+The actual study covered many models and included intervention experiments. In
+addition to identifying where emotion knowledge is stored, the study checked
+whether manipulating small sets of activations (e.g., an attention head) could
+cause large changes in the model's predictions. This provides stronger evidence
+of localization. Nonetheless, even this small analysis has shed light on how we
+can make progress towards a real world question (how do LLMs recognize
+attention?) about AI models without simply treating them as a black box to be
+interrogated.
