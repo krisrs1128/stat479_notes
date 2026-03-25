@@ -15,3 +15,4 @@
 - [Get Out the Vote Case Study](https://krisrs1128.github.io/stat479_notes/activities/03-gotv_cart.html)
 - [Boosting and Pocket Measurements](https://krisrs1128.github.io/stat479_notes/activities/04-pockets.html)
 - [Drosophila Case Study](https://krisrs1128.github.io/stat479_notes/activities/05-drosophila.html)
+- [LLMs and Emotion](https://krisrs1128.github.io/stat479_notes/activities/10-emotion_probe.html)
