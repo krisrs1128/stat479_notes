@@ -17,33 +17,34 @@ R or python. You may review this assignment's source code [here](https://github.
 
 ## Evaluation Criteria
 
-**Technical accuracy**: Definitions used correctly, claims stated precisely.
+**Technical Precision**
 
-**Completeness**: Assertions grounded in readings, lectures, or original code.
+  - All quantities defined correctly.
+  - Claims are made precisely, no vagueness.
+  - Figures have labeled axes, legends, and descriptive captions.
 
-**Clarity**: Well-formatted, grammatically correct prose (not bullet fragments). No wordiness.
+**Completeness**:
 
-**Code quality**: Modular functions, meaningful variable names.
+  - Each method choice is justified, not just described.
+  - Claims are grounded in readings, lectures, or original code.
+  - Logical connections between claims and evidence.
+  - Caveats are acknowledged where relevant.
 
+**Clarity**
 
-## Problem 1 [MLP Flexibility]
+  - Appropriate formatting and demarcation into sections.
+  - Grammatically correct prose (not sentence fragments).
+  - Visualizations referenced in prose, not simply included without comment.
+  - No wordiness.
 
-The layers of an MLP alternate linear transformations with componentwise
-nonlinearities. Discuss whether an MLP can exactly represent the functiosn
-below. If it is possible, provide the weights, biases, and activation functions
-for each layer. If it cannot be done, explain why.
+**Code quality**
 
-a. $f : \reals \to \reals$ defined by $f\left(x\right) = \left|x \right|$
+  - Only necessary outputs are shown, and manageable code size.
+  - Code is logically organized into functions or split into clearly commented sections.
+  - No unnecessary code or duplication.
+  - Logical variables names.
 
-b. $f : \reals \to \reals$ defined by $f\left(x\right) = x^2$
-
-c. $f : \reals^{2} \to \reals$ defined by $f\left(x\right) = \begin{cases} 1 &\text{ if } x_1 > x_2 \\ 0 &\text{otherwise} \end{cases}$
-
-d. $f : \reals^{2} \to \reals$ defined by $f\left(x\right) = \begin{cases} 1 & \text{ if } x_{1} > 0 \text{ and } x_{2} > 0 \\ 0 & \text{ otherwise} \end{cases}$
-
-e. $f : \reals^{2} \to \reals$ defined by $f\left(x\right) = \max\left(x_1, x_2\right)$.
-
-## Problem 2 [Normalization]
+## Problem 1 [Normalization]
 
 The parts below concern normalization layers in neural networks. Each part can
 be done independently. Make sure to explain your answer.
@@ -70,7 +71,7 @@ remains unchanged.
 c. TRUE FALSE Batch normalization can be used for any of the following batch
 sizes: $B = 1, 10, 100$.
 
-## Problem 3 [Vanishing and Exploding Gradients]
+## Problem 2 [Vanishing and Exploding Gradients]
 
 In deep models, failing to include normalization layers can result in vanishing
 or exploding gradients. This problem asks you to explore these issues in a 30
@@ -132,7 +133,7 @@ c. For either the exploding or vanishing gradient cases, explain why layer
 normalization has a stabilizing effect. Relate the variables used in the
 definition of of LayerNorm to the variables present in the code.
 
-## Problem 4 [Heteroskedastic Regression]
+## Problem 3 [Heteroskedastic Regression]
 
 Beyond predictive performance, it is often necessary to measure the uncertainty
 associated with each prediction. This is especially useful in the
@@ -149,7 +150,15 @@ L_{\text{MSE}}\left(\theta\right) &= \frac{1}{n}\sum_{i = 1}^{n}\left(y_i - f_{\
 \end{align}
 
 ```{python}
-import altair
+import altair as alt
+import pandas as pd
+
+train_df = pd.read_csv("../data/train_data.csv")
+alt.Chart(train_df).mark_circle(size=22, opacity=0.55).encode(
+    x=alt.X("x_train:Q", title="x_train"),
+    y=alt.Y("y_train:Q", title="y_train"),
+    tooltip=["x_train:Q", "y_train:Q"],
+).properties(width=560, height=340, title="y_train vs x_train")
 ```
 
 a. Instead of using an MSE loss, it is possible to optimize model parameters
@@ -193,7 +202,7 @@ c. The block below learns parameters for the model from (b) using the loss from
 deviation $\sigma_{\theta}\left(x\right)$ over the test data saved here.
 
 ```{python}
-
+x_train, y_train = train_df["x"], train_df["y"]
 model = HeteroskedasticModel()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
@@ -219,12 +228,13 @@ and test likelihood.
 ```{python}
 print(f"Train loglikelihood: {-loss:.4f}")
 
+x_test, y_test = test_df["x"], test_df["y"]
 mu_test, sigma_test = model(x_test)
 test_nll = nll_loss(y_test, mu_test, sigma_test).item()
 print(f"Test loglikelihood: {-test_nll:.4f}")
 ```
 
-## Problem 5 [Hotel Reviews]
+## Problem 4 [Hotel Reviews]
 
 A key property of deep networks is that they learn progressively more abstract
 representations across layers. In this problem, you will visualize that
