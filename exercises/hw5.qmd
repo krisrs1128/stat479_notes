@@ -1,11 +1,266 @@
-# Homework 5
+---
+title: "STAT 479: HW5"
+author: Spring 2026
+format: pdf
+execute:
+    echo: true
+    message: false
+    warning: false
+    cache: false
+---
 
-1. marginal vs. conditional shap
+# Submission Details
 
-1. importance of shap baselines
+Upload your solution to Gradescope as a PDF document. Include all relevant
+figures within your explanations. Include all relevant code. You may use either
+R or python. You may review this assignment's source code [here](https://github.com/krisrs1128/stat479_notes/blob/master/exercises/hw5.qmd).
 
-1. layernorm from scratch
+## Evaluation Criteria
 
-1. width vs. depth
+**Technical accuracy**: Definitions used correctly, claims stated precisely.
 
-1. hotel reviews embeddings
+**Completeness**: Assertions grounded in readings, lectures, or original code.
+
+**Clarity**: Well-formatted, grammatically correct prose (not bullet fragments). No wordiness.
+
+**Code quality**: Modular functions, meaningful variable names.
+
+
+## Problem 1 [MLP Flexibility]
+
+The layers of an MLP alternate linear transformations with componentwise
+nonlinearities. Discuss whether an MLP can exactly represent the functiosn
+below. If it is possible, provide the weights, biases, and activation functions
+for each layer. If it cannot be done, explain why.
+
+a. $f : \reals \to \reals$ defined by $f\left(x\right) = \left|x \right|$
+
+b. $f : \reals \to \reals$ defined by $f\left(x\right) = x^2$
+
+c. $f : \reals^{2} \to \reals$ defined by $f\left(x\right) = \begin{cases} 1 &\text{ if } x_1 > x_2 \\ 0 &\text{otherwise} \end{cases}$
+
+d. $f : \reals^{2} \to \reals$ defined by $f\left(x\right) = \begin{cases} 1 & \text{ if } x_{1} > 0 \text{ and } x_{2} > 0 \\ 0 & \text{ otherwise} \end{cases}$
+
+e. $f : \reals^{2} \to \reals$ defined by $f\left(x\right) = \max\left(x_1, x_2\right)$.
+
+## Problem 2 [Normalization]
+
+The parts below concern normalization layers in neural networks. Each part can
+be done independently. Make sure to explain your answer.
+
+a. The pseudocode below is sketches Layer Normalization for a transformer layer.
+Is it correct? If not, correct it.
+
+```
+function layer_norm(X, beta, gamma):
+    # Arguments:
+    #   X is a (D, n_tokens) tensor
+    #   beta is the LayerNorm bias parameter
+    #   gamma is the LayerNorm scale parameter
+    mu = row_means(X) # shape (D, 1)
+    sigma_sq = row_variances(X) # shape (D, 1)
+    X_norm = (X - mu) / sqrt(sigma)
+    return gamma * X_norm + beta
+```
+
+b. TRUE FALSE In layer normalization, it is possible to choose $\beta$ and
+$\gamma$ so that the mean and variance of each sample across feature dimensions
+remains unchanged.
+
+c. TRUE FALSE Batch normalization can be used for any of the following batch
+sizes: $B = 1, 10, 100$.
+
+## Problem 3 [Vanishing and Exploding Gradients]
+
+In deep models, failing to include normalization layers can result in vanishing
+or exploding gradients. This problem asks you to explore these issues in a 30
+layer MLP $f_{\theta}\left(x\right)$. The parameters $\theta$ are randomly
+initialized using random normal variables with standard deviation $\sigma_init$.
+
+The code below computes activations $h^{l}, l = 1, \dots, 30$ for randomly
+generated inputs $x$ along with gradients
+$\nabla_{\theta^l}f_{\theta}\left(x\right)$ for each layer's parameters
+$\theta^l$. @fig-vanishing plots the norms $\|h^l\|_{2}$ and
+$\|\nabla_{\theta^l}f(x)\|_{2}$ $\|_2$ where the norm is defined as $\|v\|_{2} =
+\sqrt{\sum_{j} v_{j}^2}$
+
+```{python}
+``{python}
+import torch
+import torch.nn as nn
+
+def create_model(n_layers=30, D=64, sigma_init=0.3)
+    """
+    Initialize an MLP with random normal weights and biases
+    """
+    layers = [(nn.Linear(D, D), nn.RelU()) for _ in range(n_layers)] # hidden layers
+    layers.append(nn.Linear(64, 1)) # output layer
+
+    # initialize weights and biases
+    for layer in layers:
+        nn.init.normal_(layer.weight, std=sigma_init)
+        nn.init.normal_(layer.bias, std=sigma_init)
+    return nn.Sequential(layers)
+
+def gather_norms(model, x):
+    """
+    Gather model activations at the sample x
+    """
+    f = model(x)
+    f.backward()
+
+    # activations = ???
+    act_norms  = [a.norm().item() for a in activations]
+    grad_norms = [l.weight.grad.norm().item() for l in layers]
+    return act_norms, grad_norms
+```
+
+a. Run the code below and describe how both the activation and gradient norms
+change across network depths. Rerun the code with `sigma_init` set to 0.1
+instead of 0.3. Comment on the implications for training deep learning models.
+
+```{python}
+f = create_model()
+act_norms, grad_norms = gather_norms(f, torch.randn(1, 64))
+```
+
+b. Modify the function `create_model` so that it includes an `nn.LayerNorm`
+layer after each ReLU layer. Rerun the analysis from (a) and comment on the
+differences.
+
+c. For either the exploding or vanishing gradient cases, explain why layer
+normalization has a stabilizing effect. Relate the variables used in the
+definition of of LayerNorm to the variables present in the code.
+
+## Problem 4 [Heteroskedastic Regression]
+
+Beyond predictive performance, it is often necessary to measure the uncertainty
+associated with each prediction. This is especially useful in the
+_heteroskedastic_ setting, where the residual error variance is not constant. In
+this exercise, we will see how a deep learning architecture and modification of
+the MSE loss can be used to address this problem.
+
+Figure @regression-uncertaintay plots the training data saved here. A typical
+deep learning approach finds a nonlinear model $f_\theta$ that minimizes the
+mean-squared error loss
+\begin{align}
+\label{eq:mse}
+L_{\text{MSE}}\left(\theta\right) &= \frac{1}{n}\sum_{i = 1}^{n}\left(y_i - f_{\theta}\left(x_i\right)\right)
+\end{align}
+
+```{python}
+import altair
+```
+
+a. Instead of using an MSE loss, it is possible to optimize model parameters
+$\theta$ that instead minimizes the negative loglikelihood,
+\begin{align*}
+L\left(\theta\right) = \prod_{i = 1}^{n} -\log \mathcal{N}\left(y_i \vert \mu_{\theta}\left(x_i\right), \sigma_{\theta}^2\right)
+\end{align*}
+where both $\mu_{\theta}$ and $\sigma_{\theta}$ must be learned during training.
+See also the code block below.  Compare and contrast this loss with the MSE.
+
+```{python}
+def nll_loss(y, mu, sigma):
+    nll = torch.log(2 * torch.pi * sigma ** 2) + (y - mu) ** 2 / (sigma ** 2)
+    return 0.5 * nll.mean()
+```
+
+b. The block below defines an architecture that learns $\mu_{\theta}$ and
+$\sigma_{\theta}$ in the equation above. Is it a perceptron, MLP, transformer,
+or none of the above? Draw a picture of the network architecture and label the
+dimensionalities of the hidden layers and outputs.
+
+```{python}
+class HeteroskedasticModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(1, 64), nn.ReLU(),
+            nn.Linear(64, 64), nn.ReLU(),
+            nn.Linear(64, 2)
+        )
+
+    def forward(self, x):
+        out = self.net(x)
+        mu    = out[:, 0:1]
+        sigma = torch.nn.functional.softplus(out[:, 1:2])
+        return mu, sigma
+```
+
+c. The block below learns parameters for the model from (b) using the loss from
+(a). Visualize the predicted mean $\mu_{\theta}\left(x\right)$ and standard
+deviation $\sigma_{\theta}\left(x\right)$ over the test data saved here.
+
+```{python}
+
+model = HeteroskedasticModel()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+n_epochs = 2000
+for epoch in range(n_epochs):
+    optimizer.zero_grad()
+    mu_hat, sigma_hat = model(x_train)
+    loss = nll_loss(y_train, mu_hat, sigma_hat)
+    loss.backward()
+    optimizer.step()
+
+    if (epoch + 1) % 500 == 0:
+        print(f"epoch={epoch + 1:4d}, nll={loss.item():.4f}")
+```
+
+d. The block below computes the loglikelihood on the training and test splits.
+Make a change to one of the following modeling decisions: The hidden state
+dimensionality, the number of layers, or the total number of epochs. After
+making the change, has the model performanced improved or worsened compared to
+the result in (c)? Justify your answer in terms of the gap between the training
+and test likelihood.
+
+```{python}
+print(f"Train loglikelihood: {-loss:.4f}")
+
+mu_test, sigma_test = model(x_test)
+test_nll = nll_loss(y_test, mu_test, sigma_test).item()
+print(f"Test loglikelihood: {-test_nll:.4f}")
+```
+
+## Problem 5 [Hotel Reviews]
+
+A key property of deep networks is that they learn progressively more abstract
+representations across layers. In this problem, you will visualize that
+phenomenon using embeddings from a pretrained language model applied to a
+dataset of hotel reviews, both of which are loaded below. _Hint: You may want to
+initially develop your code on a subset of the original data, to speed up
+debugging._
+
+```{python}
+import pandas as pd
+import torch
+from transformers import AutoTokenizer, AutoModel
+
+reviews = pd.read_csv("../data/reviews.csv").sample(500)
+MODEL_ID = "distilbert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+model = AutoModel.from_pretrained(MODEL_ID, output_hidden_states=True)
+```
+
+a. The model architecture is printed below. Describe the role of
+`word_embeddings`. Where does the 30522 come from? What are the dimensions of
+the inputs and outputs to each transformer block?
+
+```{python}
+model.eval()
+```
+
+b. The function `hidden_states` extracts activations for `texts` at a
+prespecified layer number. Use it to extract activations at layers 0 and 6.
+
+c. For a small number (2 - 5) reviews of your choice, identify their $K = 10$
+nearest neighbors with respect to Euclidean distance applied to the
+representations at layers 0 and 6. Comment on the types of similarities that
+appear at the two layers.
+
+d. Using either visualizations or summary statistics, answer two questions about
+the activations in layer 6: Can these activations distinguish one vs. five star
+reviews? Among 5 star reviews, do different review topics cluster in different
+regions of the activation space?
