@@ -64,9 +64,10 @@ Is it correct? If not, correct it.
 
 b. TRUE FALSE In layer normalization, it is possible to choose $\beta$ and
 $\gamma$ so that the mean and variance of each sample across feature dimensions
-remains unchanged.
+remains unchanged. Justify your answer.
 
-c. TRUE FALSE Batch normalization can be used for batch size $B = 1$.
+c. TRUE FALSE Batch normalization can be used for batch size $B = 1$. Justify
+your answer.
 
 ## Problem 2 [Vanishing and Exploding Gradients]
 
@@ -122,8 +123,8 @@ def gradient_norms(model, x):
    a. Using `activations_norms` and `gradient_norms` (defined in the [source
    qmd](https://github.com/krisrs1128/stat479_notes/blob/master/exercises/hw5.qmd)),
    run the code below and describe how $\|h^l\|_{2}$ and
-   $\|\nabla_{W^l}f(x)\|_{2}$ change across layers $l$. Repeat with `sigma_init
-   = 0.1` and comment on the implications for training deep models.
+   $\|\nabla_{W^l}f(x)\|_{2}$ change across layers $l$. Comment on the
+   implications for training deep models.
 
       ```{python}
       #| label: run-gather-norms
@@ -133,8 +134,8 @@ def gradient_norms(model, x):
       grad_norms = gradient_norms(f, x)
       ```
 
-   b. Repeat (a) with `sigma_init` set to 0.1 instead of 0.3. What do both runs
-   imply about training deep networks?
+   b. Repeat (a) with `sigma_init` set to 0.1 instead of 0.3. Comment on the
+   implications for training deep models.
 
    c. Modify the function `create_model` so that it includes an `nn.LayerNorm`
    layer after each ReLU layer. Rerun the analysis from (a) and comment on the
@@ -175,7 +176,7 @@ alt.Chart(train_df).mark_circle(size=20).encode(
 a. Instead of using an MSE loss, it is possible to optimize model parameters
 $\theta$ that instead minimizes the negative loglikelihood,
     \begin{align*}
-    L_{\mathcal{N}}\left(\theta\right) = -\sum_{i = 1}^{n} \log \mathcal{N}\left(y_i \vert \mu_{\theta}\left(x_i\right), \sigma_{\theta}^2\left(x\right)\right)
+    L_{\mathcal{N}}\left(\theta\right) = -\sum_{i = 1}^{n} \log \mathcal{N}\left(y_i \vert \mu_{\theta}\left(x_i\right), \sigma_{\theta}^2\left(x_i\right)\right)
     \end{align*}
 where both $\mu_{\theta}$ and $\sigma_{\theta}$ must be learned during training.
 See also the code block below.  Compare this loss with @eq-mse: When are they
