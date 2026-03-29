@@ -29,6 +29,7 @@ R or python. You may review this assignment's source code [here](https://github.
   - Claims are grounded in readings, lectures, or original code.
   - Logical connections between claims and evidence.
   - Caveats are acknowledged where relevant.
+  - Justifications are given for each TRUE / FALSE question.
 
 **Clarity**
 
@@ -45,9 +46,6 @@ R or python. You may review this assignment's source code [here](https://github.
   - Logical variable names.
 
 ## Problem 1 [Normalization]
-
-This problem is about normalization in neural networks. For each part, explain
-your answer.
 
 a. The pseudocode below sketches Layer Normalization for a transformer layer.
 Is it correct? If not, correct it.
@@ -72,9 +70,8 @@ c. TRUE FALSE Batch normalization can be used for batch size $B = 1$.
 
 ## Problem 2 [Vanishing and Exploding Gradients]
 
-In deep models, omitting normalization layers can result in vanishing or
-exploding gradients. This problem asks you to explore these issues in a 30 layer
-MLP $f_{\theta}\left(x\right)$. The model weights are randomly initialized using
+This problelm explores exploding and vanishing gradients in a 30 layer MLP
+$f_{\theta}\left(x\right)$. The model weights are randomly initialized using
 random normal variables with standard deviation `sigma_init`.
 
 ```{python}
@@ -121,13 +118,12 @@ def gradient_norms(model, x):
     return [l.weight.grad.norm().item() for l in model if isinstance(l, nn.Linear)]
 ```
 
-   a. The functions `activation_norms` and `gradient_norms` compute the $\ell^2$
-   norm of activations $h^{l}$ and gradients $\|\nabla_{W^l}f(x)\|_{2}$ across
-   layers $l$. Their definition is included in the [source
-   qmd](https://github.com/krisrs1128/stat479_notes/blob/master/exercises/hw5.qmd).
-   Run the code below and describe how both norms change across $l$. Rerun the
-   code with `sigma_init` set to 0.1 instead of 0.3. Comment on the implications
-   for training deep models.
+
+   a. Using `activations_norms` and `gradient_norms` (defined in the [source
+   qmd](https://github.com/krisrs1128/stat479_notes/blob/master/exercises/hw5.qmd)),
+   run the code below and describe how $\|h^l\|_{2}$ and
+   $\|\nabla_{W^l}f(x)\|_{2}$ change across layers $l$. Repeat with `sigma_init
+   = 0.1` and comment on the implications for training deep models.
 
       ```{python}
       #| label: run-gather-norms
@@ -137,7 +133,10 @@ def gradient_norms(model, x):
       grad_norms = gradient_norms(f, x)
       ```
 
-   b. Modify the function `create_model` so that it includes an `nn.LayerNorm`
+   b. Repeat (a) with `sigma_init` set to 0.1 instead of 0.3. What do both runs
+   imply about training deep networks?
+
+   c. Modify the function `create_model` so that it includes an `nn.LayerNorm`
    layer after each ReLU layer. Rerun the analysis from (a) and comment on the
    differences. Refer to the definition of LayerNorm to explain this effect.
 
@@ -145,13 +144,11 @@ def gradient_norms(model, x):
 
 Beyond predictive performance, it is often necessary to measure the uncertainty
 associated with each prediction. This is especially useful in the
-_heteroskedastic_ setting, where the residual error variance is not constant. In
-this exercise, we will see how a deep learning architecture and modification of
-the MSE loss can be used to address this problem.
-
-@fig-regression-uncertainty plots the training data [saved here](https://github.com/krisrs1128/stat479_notes/raw/refs/heads/master/data/train_data.csv). A typical
-deep learning approach finds a nonlinear model $f_\theta$ that minimizes the
-mean-squared error loss
+_heteroskedastic_ setting, where the residual error variance is not constant.
+@fig-regression-uncertainty plots training data with this property ([
+link](https://github.com/krisrs1128/stat479_notes/raw/refs/heads/master/data/train_data.csv)).
+A typical deep learning approach finds a nonlinear model $f_\theta$ that
+minimizes the mean-squared error loss
 
 $$
 L_{\text{MSE}}\left(\theta\right) = \frac{1}{n}\sum_{i = 1}^{n}\left(y_i - f_{\theta}\left(x_i\right)\right)^2
@@ -178,10 +175,12 @@ alt.Chart(train_df).mark_circle(size=20).encode(
 a. Instead of using an MSE loss, it is possible to optimize model parameters
 $\theta$ that instead minimizes the negative loglikelihood,
     \begin{align*}
-    L\left(\theta\right) = -\prod_{i = 1}^{n} \log \mathcal{N}\left(y_i \vert \mu_{\theta}\left(x_i\right), \sigma_{\theta}^2\left(x\right)\right)
+    L_{\mathcal{N}}\left(\theta\right) = -\sum_{i = 1}^{n} \log \mathcal{N}\left(y_i \vert \mu_{\theta}\left(x_i\right), \sigma_{\theta}^2\left(x\right)\right)
     \end{align*}
 where both $\mu_{\theta}$ and $\sigma_{\theta}$ must be learned during training.
-See also the code block below.  Compare and contrast this loss with @eq-mse.
+See also the code block below.  Compare this loss with @eq-mse: When are they
+equivalent, and what additional information does
+$L_{\mathcal{N}}\left(\theta\right)$ recover?
 
    ```{python}
    #| label: nll-loss
@@ -256,14 +255,16 @@ likelihood.
 A key property of deep networks is that they learn more and more abstract
 representations in deeper layers. In this exercise, you will visualize this
 phenomenon with a pretrained language model applied to a dataset of hotel
-reviews, both of which are loaded below. _Hint: You may want to initially
-develop your code on a subset of the original data, to speed up debugging._
+reviews, both of which are loaded below.
+
+_Hint: You may want to initially develop your code on a subset of the original
+data, to speed up debugging._
 
 ```{python}
 #| label: load-reviews
 from transformers import AutoTokenizer, AutoModel
 
-reviews = pd.read_csv("https://github.com/krisrs1128/stat479_notes/raw/refs/heads/master/data/reviews.csv").sample(500)
+reviews = pd.read_csv("https://github.com/krisrs1128/stat479_notes/raw/refs/heads/master/data/reviews.csv")
 texts = reviews["Review"].tolist()
 
 MODEL_ID = "distilbert-base-uncased"
@@ -291,12 +292,11 @@ def hidden_states(texts, layer_idx):
     return hidden.mean(dim=1).numpy() # average over tokens
 ```
 
-c. For a small number (2 - 5) reviews of your choice, identify their $K = 10$
-nearest neighbors with respect to Euclidean distance applied to the
-representations at layers 0 and 6. Comment on the types of similarities that
-appear at the two layers.
+c. For 2 - 5 reviews of your choice, find their $K = 10$ nearest neighbors with
+respect to Euclidean distance over representations at layers 0 and 6. What kinds
+of similarities does each layer capture?
 
-d. Using either visualizations or summary statistics, answer two questions about
-the activations in layer 6: Can these activations distinguish one vs. five star
-reviews? Among 5 star reviews, do different review topics cluster in different
-regions of the activation space?
+d. Using layer 6's activations across the entire dataset, address: (i) Can they
+distinguish 1- vs. 5-star reviews? (ii) Among 5-star reviews, do reviews cluster
+into meaningful topics? You may use visualizations or additional models as you
+see fit.
