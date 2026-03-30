@@ -51,7 +51,7 @@ set.seed(2026)
 # includes the SHAP package. Can install it using,
 # > conda env create -f stat479_week6.yml
 # where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week11.yml
-use_condaenv("stat479_week12")
+use_condaenv("stat479_week13")
 ```
 
 _Readings: [1](.html)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/13-saliency_handout.qmd)_
@@ -85,12 +85,14 @@ allow us to test whether the properties we observe are meaningful.
 
 1. _Model debugging_. When introducing SHAP, we discussed how local feature
 attribution can be useful for catching model "shortcuts" that would not
-generalize well. This remains important for saliency maps. For example, @ref
-applied deep convolutional networks to classify X-ray images into pneumonia and
-healthy groups. Example saliency maps are shown below. The model has learned a
-shortcut through a small ID, which was hospital specific.  Since classes are not
-balanced across hospitals, this could be used to improve training accuracy, but
-it would not generalize well.
+generalize well. This remains important for saliency maps. For example,
+@DeGrave2021 applied deep networks to classify radiographic images into COVID-19
+and healthy groups. An example saliency map is shown below. The model has
+learned a shortcut through a small ID, which was hospital specific.  Since
+classes are not balanced across hospitals, this could be used to improve
+training accuracy, but is not the signal we want the model to pick up.
+
+![](figures/covid_shortcut.png)
 
 1. _Model validation_. Saliency maps that "focus" on the relevant parts of an
 image is often used as a form of model validation. For example, @ref found that
@@ -100,10 +102,12 @@ will see below that without further sanity checks, a saliency map that
 highlights an object of interest is in and of itself not useful.
 
 1. _Beyond Images_. While we focus on images, the gradient-based methods
-discussed below can be directly applied to other data types. For example @ref
-used integrated gradients to prioritize biological regulatory features in a
-protein sequence model, and @ref used the same method to highlight words that
-are most important in sentiment analysis of online reviews.
+discussed below can be directly applied to other data types. For example
+@Yang2023 used integrated gradients to prioritize regulatory features in a
+genomic model. Further, the captum library we review below has tutorials for
+applying gradient-based explanations to
+[text](https://captum.ai/tutorials/Llama2_LLM_Attribution) and [vision +
+text](https://captum.ai/tutorials/Multimodal_VQA_Interpret) data.
 
 ## Saliency Map Methods
 

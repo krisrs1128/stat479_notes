@@ -1,0 +1,16 @@
+name: stat479_week13
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - matplotlib
+  - pip
+  - pip:
+      - torch==2.10.0
+      - torchvision
+      - altair[all]
+      - transformers
+      - captum
+      - scikit-learn
+prefix: /opt/miniconda3/envs/stat479_week13
