@@ -151,7 +151,7 @@ where $x_0$ is some baseline input (like the black, all zeros image). At these
 shrunken versions of the input, the activations will be smaller, and so the risk
 of saturated gradients decreases.
 
-(animation from the distill article)
+![Figure from @Sturmfels2020](figures/integrated_gradients_animation.gif)
 
 1. *SmoothGrad*. This method averages gradient explanations across many "noisy"
 versions of the input.
@@ -207,13 +207,15 @@ similarities = [Sim(E^(l), E_original) for each E^(l) in explanations]
 1. This analysis allows us to generate figures like the one below. Surprisingly,
 many of the "explanations" fail the model randomization test. In fact, the
 simpler methods seem to do better than many of the more sophisticated ones.
-@adebayo2018 argue that this is evidence that visual evaluation is not enough.
-The output from explainability techniques can seem qualitatively plausible but
-collapse under quantiative scrutiny.
 
 ![](figures/cascading_randomization.png)
 
-1.
+1. These qualitative results are quantified through the `Sim()` function. The
+fact that some correlations never decay (especially in the ABS case, which
+considers $\left|E\left(x^*, f\right)\right|$) suggests that at least some of
+the structure in the attributions is irrelevant. @adebayo2018 argues that these
+quantiative checks are necessary, because explainability outputs that seem
+qualitatively plausible collapse under quantitative scrutiny.
 
 ![](figures/cascading_quantified.png)
 
@@ -255,12 +257,176 @@ characteristics of the trained model $f$.
 
 ![](figures/sanity_data_randomization.png)
 
+We can quantify this using the `Sim()` function as before. In this case, it
+reveals that the ABS version of the explainabililty technique fails the sanity
+check, but the signed version passes. Indeed, in the visualization output, the
+explanations for the randomly labeled data still have zeros, but they are a mix
+of positive and negative attributions, unlike the original explanations, which
+are mostly positive.
+
 ![](figures/data_randomization_quantified.png)
 
 ## Discussion
 
-1.
+1. For most of this class, we've focused on novel methods, but not so much on
+benchmarking. Indeed, compared to supervised learning tasks, it is much more
+challenging to quantitatively compare interpretability methods. Nonetheless,
+this paper does exactly that, and the fact that it highlights widespread
+misinterpretation shouldn't be seen as discouraging, if anything it is an
+important advance.
+
+1. Ultimately, the goal of research in interpretability is to create methods
+that support accurate interpretation in real problems. To achieve this goal
+requires more than new tools -- it requires deeper understanding of the basic
+properties of these methods and the settings in which they excel/break down.
+Checks like the model and data randomization tests are progress towards this
+goal.
 
 ## Code Example
 
-Minimal example from captum
+1. We'll use the `captum` package to create an integrated gradients saliency map
+using pretrained weights from imagenet. The block below defines some helper
+functions unrelated to the core attribution step, but which are necessary for
+running the pretrained model and plotting the saliency maps.
+
+```{python}
+#| label: captum-setup
+import torch
+import numpy as np
+import pandas as pd
+import altair as alt
+from PIL import Image
+from torchvision import models, transforms
+from captum.attr import Saliency, IntegratedGradients
+
+def load_model():
+    model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    model.eval()
+    return model
+
+def preprocess(img):
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225]),
+    ])
+    return transform(img).unsqueeze(0).requires_grad_(True)
+
+def predict(model, input_tensor):
+    with torch.no_grad():
+        output = model(input_tensor)
+    return output.argmax(dim=1).item()
+
+def attribution_to_df(tensor, label):
+    """Flatten the (1, C, H, W) attribution tensor to a DataFrame."""
+    arr = tensor.squeeze().abs().mean(dim=0).detach().numpy()
+    h, w = arr.shape
+    ys, xs = np.mgrid[0:h, 0:w]
+    return pd.DataFrame({"x": xs.ravel(), "y": ys.ravel(),
+                         "value": arr.ravel(), "method": label})
+```
+
+1.  I took this image from wikimedia's [image of the day](https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day#/media/File:Little_corella_(Cacatua_sanguinea_gymnopis)_Blanchetown.jpg) (March 24). The pretrained Residual Network model correctly identifies the image as showing a type of cockatoo [Class 89](https://salient-imagenet.cs.umd.edu/explore/class_89/feature_675.html)_.
+
+```{python}
+#| label: captum-run
+model = load_model()
+img = Image.open("figures/corella.jpg").convert("RGB")
+input_tensor = preprocess(img)
+target_class = predict(model, input_tensor)
+print(target_class)
+```
+
+1. Captum provides a consistent interface to several saliency map methods.
+$E_{\text{grad}}\left(x^*, f\right)$ is implemented by the `Saliency` class,
+which needs to be intialized on the trained model and which can then be applied
+to any sample $x^*$.
+
+```{python}
+saliency  = Saliency(model)
+attr_grad = saliency.attribute(input_tensor, target=target_class)
+```
+
+1. Nearly the same interface works with $E_{\text{IG}}\left(x^*, f\right)$,
+except that we have to specify how finely we should discretize the integration
+path.
+
+```{python}
+ig = IntegratedGradients(model)
+attr_ig = ig.attribute(input_tensor, target=target_class, n_steps=50)
+
+```
+
+1. Finally, we visualize the results. `IntegratedGradients` are better able to
+highlight the bird, so we must be in a case where gradients are saturating.
+
+```{python}
+#| label: captum-plot
+alt.data_transformers.enable("vegafusion")
+
+df = pd.concat([
+    attribution_to_df(attr_grad, "Gradient Saliency"),
+    attribution_to_df(attr_ig,   "Integrated Gradients"),
+])
+
+alt.Chart(df).mark_rect().encode(
+    x=alt.X("x:O", axis=None),
+    y=alt.Y("y:O", axis=None),
+    color=alt.Color("value:Q")
+).properties(width=200, height=200).facet(
+    facet=alt.Facet("method:N", title=None),
+    columns=2,
+).configure_view(strokeWidth=0)
+```
+
+
+1. We next run the model randomization sanity check. We create a copy of the
+model, `model_rand`, that we progressively destroy. The `attrs` object saves all
+the intermediate attributions for this sample and will let us create
+visualizations and rank correlation sumamrizes.
+
+```{python}
+#| label: cascade-randomization
+import copy
+from scipy.stats import spearmanr
+
+def attr_flat(attr):
+    return attr.squeeze().abs().mean(dim=0).detach().numpy().ravel()
+
+cascade_layers = ["layer4", "layer3", "layer2", "layer1", "conv1"]
+layer_order = ["Original"] + [f"+ {l}" for l in cascade_layers]
+
+model_rand = copy.deepcopy(model)
+attrs = {"Original": attr_ig}
+for layer_name in cascade_layers:
+    for param in model_rand.get_submodule(layer_name).parameters():
+        torch.nn.init.normal_(param.data, std=0.1)
+    attrs[layer_name] = Saliency(model_rand).attribute(input_tensor, target=target_class)
+```
+
+1. Even after the first layer, the spearman correlations drop off.
+
+```{python}
+orig_flat = attr_flat(attr_ig)
+cascade_dfs = [attribution_to_df(attr, layer_order[i]) for i, attr in enumerate(attrs.values())]
+[{"layer": l, "rank correlation": spearmanr(orig_flat, attr_flat(a)).statistic} for l, a in attrs.items()]
+```
+
+We can see this effect in the visualizations as well. Even after randomizing the
+top layer, we no longer see the cockatoo appearing in the explanation.
+
+```{python}
+#| label: cascade-plot
+df_cascade = pd.concat(cascade_dfs)
+
+alt.Chart(df_cascade).mark_rect().encode(
+    x=alt.X("x:O", axis=None),
+    y=alt.Y("y:O", axis=None),
+    color=alt.Color("value:Q")
+).properties(width=150, height=150).facet(
+    facet=alt.Facet("method:N", title=None, sort=layer_order),
+    columns=3,
+)
+```
