@@ -1,0 +1,266 @@
+---
+title: "Saliency Maps"
+author: Kris Sankaran
+date: 2026-04-06
+bibliography: references.bib
+format:
+  html:
+    embed-resources: true
+    html-math-method: mathjax
+    fig-align: center
+execute:
+    echo: true
+    message: false
+    warning: false
+    cache: false
+    eval: true
+---
+
+::: {style="display: none;"}
+$$
+\newcommand{\bs}[1]{\mathbf{#1}}
+\newcommand{\reals}{\mathbb{R}}
+\newcommand{\widebar}[1]{\overline{#1}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\indic}[1]{\mathbb{1}\left\{{#1}\right\}}
+\newcommand{\Earg}[1]{\mathbb{E}\left[{#1}\right]}
+\newcommand{\Esubarg}[2]{\mathbb{E}_{#1}\left[{#2}\right]}
+$$
+:::
+
+<style>
+.purple { color: #7458d1ff; } /* pastel purple */
+.orange { color: #fca020; } /* pastel orange */
+.green { color: #3bbe67ff; } /* pastel green */
+.darkblue { color: #4a9ceaff; } /* pastel dark blue */
+.pink { color: #ee6ec3ff; } /* pastel pink */
+</style>
+
+```{r}
+#| label: setup
+#| echo: false
+library(tidyverse)
+library(reticulate)
+theme_set(theme_classic() + theme(panel.border= element_rect(fill = NA, linewidth = .5)))
+set.seed(2026)
+```
+
+```{r}
+#| label: python-setup
+#| echo: false
+# includes the SHAP package. Can install it using,
+# > conda env create -f stat479_week6.yml
+# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week11.yml
+use_condaenv("stat479_week12")
+```
+
+_Readings: [1](.html)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/13-saliency_handout.qmd)_
+
+Items marked $^{\dagger}$ are not in the required reading and will not be
+tested.
+
+## Setup
+
+**Goal** Suppose a deep learning image classifier $f$ maps a test image $x^\ast$ to a probability vector of $K$ classes $\left(f\left(x^\ast\right) = f_{1}\left(x^\ast\right), \dots, f_{K}\left(x^\ast\right)\right)$. We aim to develop a reliable local explanation $E\left(x^\ast\right)$ for a deep learning image classifier $f$ applied to a test image $x^\ast$.
+
+1. **Requirements**
+
+   - Each pixel $j$ in the test image $x^\ast$ must be associated with an
+   explanation value $E_{j}\left(x^\ast\right)$ quantifying the importance of
+   that pixel. We refer to this type of local image explanation as a _saliency
+   map_.
+    - Reliable means we should be able to check whether the saliency map is
+    picking up on true properties of the model $f$ and not spurious
+    features
+    resulting from structure in $x^\ast$ alone.
+
+1. **Approach**. We will define saliency maps using gradients $\nabla_{x}
+f\left(x\right)$. We will then define negative controls ("sanity checks") that
+allow us to test whether the properties we observe are meaningful.
+
+## Motivation
+
+1. Saliency maps were developed before SHAP, and they share similar motivations
+-- identifying the most relevant features for specific predictions. As before, we want to ensure that our model makes the right predictions for the right reasons.
+
+1. _Model debugging_. When introducing SHAP, we discussed how local feature
+attribution can be useful for catching model "shortcuts" that would not
+generalize well. This remains important for saliency maps. For example, @ref
+applied deep convolutional networks to classify X-ray images into pneumonia and
+healthy groups. Example saliency maps are shown below. The model has learned a
+shortcut through a small ID, which was hospital specific.  Since classes are not
+balanced across hospitals, this could be used to improve training accuracy, but
+it would not generalize well.
+
+1. _Model validation_. Saliency maps that "focus" on the relevant parts of an
+image is often used as a form of model validation. For example, @ref found that
+a remote sensing model for tree species classification correctly highlighted the
+parts of the image with the tree present. Though this is a common practice, we
+will see below that without further sanity checks, a saliency map that
+highlights an object of interest is in and of itself not useful.
+
+1. _Beyond Images_. While we focus on images, the gradient-based methods
+discussed below can be directly applied to other data types. For example @ref
+used integrated gradients to prioritize biological regulatory features in a
+protein sequence model, and @ref used the same method to highlight words that
+are most important in sentiment analysis of online reviews.
+
+## Saliency Map Methods
+
+1. *Gradient Explanation*. Suppose that test sample $x^\ast$ is predicted to
+belong to class $k$. We use
+$$E_{\text{grad}}\left(x^*\right) = \nabla_{x}f_{k}\left(x^\ast\right)$$
+as our explanation. This gradient measures how a small change in each input
+pixel changes the probability of the sample belonging to class $k$. Regions of
+pixels with the largest magnitude gradient values are considered the most
+important to the classification.
+
+1. Notice that $\nabla_{x}f_{k}$ is a gradient with respect to the input,
+_not_ the gradient $\nabla_{\theta}L\left(\theta\right)$ of the training loss
+with respect to the model parameters $\theta$, the usual quantity for gradient
+descent training. The gradient $\nabla_{x}f_{k}$ used for explanation is
+constructed independently of the loss and is focused on perturbations of the
+input, not the model parameters.
+
+(give a picture)
+
+1. *Input $\cdot$ Gradient*. A related approach considers the explanation,
+$$
+E_{\text{grad-input}}\left(x^*\right) = x^*\cdot\nabla_{x}f_{k}\left(x^\ast\right)
+$$
+the pointwise multiplication of the original image with the same gradient from
+$E_{\text{grad}}$. This choice is motivated by the fact that it will downweight
+darker regions of the image, where $x$ has values closer to 0.
+
+1. *Integrated Gradients*. A difficulty with using the gradient
+$\nabla_{x}f_{,k}$ for classification models is that gradients "saturate."
+Intuitively, if a model is very sure that $x^\ast$ belongs to class $k$, then
+small perturbations in $x^\ast$ won't affect the predicted class by much.
+Formally, this is because each coordinate of a softmax layer has gradient near
+zero when the input activations are either very positive or very negative.
+
+(picture of saturation)
+
+To address this, the integrated gradients method considers gradients along a
+path of shrunken versions of $x^\ast$. Specifically, we compute,
+$$
+E_{\text{IG}}\left(x^*\right) = \int \nabla_{x}f_{k}\left(\alpha x^\ast +
+\left(1 - \alpha\right)x_{0}\right) dx
+$$
+where $x_0$ is some baseline input (like the black, all zeros image). At these
+shrunken versions of the input, the activations will be smaller, and so the risk
+of saturated gradients decreases.
+
+(animation from the distill article)
+
+1. *SmoothGrad*. This method averages gradient explanations across many "noisy"
+versions of the input.
+$$
+E_{\text{SG}}\left(x^*\right) = \frac{1}{B}\sum_{b = 1}^{B} E_{\text{grad}}\left(x^* + \epsilon_{b}\right)
+$$
+where $\epsilon_{b} \sim \mathcal{N}\left(0, \sigma^2\right)$ for some noise
+level $\sigma^2$ and monte carlo sample size parameter $B$.  Qualitatively, this
+tends to result in smoother attributions across neighboring pixels.
+
+(another explanatory picture)
+
+## Sanity Checks
+
+1. @adebayo2018 was concerned that saliency maps might be picking up on
+intrinsic features of the test images $x^\ast$ rather than any meaningful
+characteristic of the models $f$. To this end, they designed negative
+control experiments that can be used to quantify whether a saliency map method
+learned meaningful patterns.
+
+1. **Model randomization**. The first negative control is based on randomizing the
+model parameters. Intuitively, any meaningful structure in the explanation
+should be destroyed after replacing the trained model weights with random
+values.  If structure is still present, then that reflects a property of the
+overall model class (e.g., transformer layers in general) rather than the
+particular dataset it was trained on, and the explanation method fails the
+sanity check.
+
+1. This is formalized in the algorithm below. We say an explanation method
+passes the test if the similarities decreases across $l = L, L - 1, \dots, 1$.
+
+```
+Input:
+  trained model f with layers 1, ..., L (each with parameters θ^l)
+  test input x*
+  explanation method E(·, f)   # e.g. gradient, integrated gradients,...
+  similarity method Sim(E, E'), # e.g., Spearman correlation between pixel values
+
+# Baseline explanation on fully trained model
+E_original = E(x*, f_θ)
+explanations = [E_original]
+
+# Cascade from top layer down to bottom
+for l = L, L-1, ..., 1:
+    θ^l ~ N(0, σ²) # randomize layer l
+    E^(l) = E(x*, f_θ) # recompute explanation on partially-randomized model
+    explanations.append(E^(l))
+
+# For each E^(l), return similarity to E_original
+similarities = [Sim(E^(l), E_original) for each E^(l) in explanations]
+```
+
+1. This analysis allows us to generate figures like the one below. Surprisingly,
+many of the "explanations" fail the model randomization test. In fact, the
+simpler methods seem to do better than many of the more sophisticated ones.
+@adebayo2018 argue that this is evidence that visual evaluation is not enough.
+The output from explainability techniques can seem qualitatively plausible but
+collapse under quantiative scrutiny.
+
+![](figures/cascading_randomization.png)
+
+1.
+
+![](figures/cascading_quantified.png)
+
+1. **Data randomization** defines a different negative control by breaking the
+relationship between $x_i$ and $y_i$. Rather than modifying an already trained
+model, it trains a new model using a corrupted dataset. This addresses the
+concern that the model randomization weights might not be realistic -- the
+weights in this method are the genuine result of a full model training
+procedure.
+
+1. Specifically, the check follows the pseudocode below. An saliency map method
+passes the check if the similarity is low.
+
+```
+Input:
+  training data {(x_i, y_i)}_{i=1}^{n}
+  model architecture F
+  test input x*
+  explanation method E(·, f)
+  similarity method Sim(E, E')
+
+# Train model on true labels
+f_true = train(A, {(x_i, y_i)})
+E_true = E(x*, f_true)
+
+# Permute labels and train on randomized data
+π = random_permute(1, ..., n)
+f_random = train(F, {(x_i, y_{π(i)})})   # train until 95% training accuracy on random labels
+E_random = E(x*, f_random)
+
+# Evaluate
+Sim(E_true, E_random)
+```
+
+1. This method can be used to generate figures like the one below. The takeaway
+from this figure is again that some well-known saliency map methods are simply
+capturing properties of the test inputs $x^\ast$ rather than meaningful
+characteristics of the trained model $f$.
+
+![](figures/sanity_data_randomization.png)
+
+![](figures/data_randomization_quantified.png)
+
+## Discussion
+
+1.
+
+## Code Example
+
+Minimal example from captum
