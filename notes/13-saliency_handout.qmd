@@ -54,28 +54,28 @@ set.seed(2026)
 use_condaenv("stat479_week13")
 ```
 
-_Readings: [1](.html)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/13-saliency_handout.qmd)_
+_Readings: [1](https://papers.nips.cc/paper_files/paper/2018/file/294a8ed24b1ad22ec2e7efea049b8737-Paper.pdf)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/13-saliency_handout.qmd)_
 
 Items marked $^{\dagger}$ are not in the required reading and will not be
 tested.
 
 ## Setup
 
-**Goal** Suppose a deep learning image classifier $f$ maps a test image $x^\ast$ to a probability vector of $K$ classes $\left(f\left(x^\ast\right) = f_{1}\left(x^\ast\right), \dots, f_{K}\left(x^\ast\right)\right)$. We aim to develop a reliable local explanation $E\left(x^\ast\right)$ for a deep learning image classifier $f$ applied to a test image $x^\ast$.
+**Goal** Suppose a deep learning image classifier $f$ maps a test image $x^\ast$ to a probability vector of $K$ classes $\left(f_{\theta}\left(x^\ast\right) = f_{\theta,1}\left(x^\ast\right), \dots, f_{\theta,K}\left(x^\ast\right)\right)$. We aim to develop a reliable local explanation $E\left(x^\ast, f_{\theta}\right)$ for a deep learning image classifier $f$ applied to a test image $x^\ast$.
 
 1. **Requirements**
 
    - Each pixel $j$ in the test image $x^\ast$ must be associated with an
-   explanation value $E_{j}\left(x^\ast\right)$ quantifying the importance of
+   explanation value $E_{j}\left(x^\ast, f_{\theta}\right)$ quantifying the importance of
    that pixel. We refer to this type of local image explanation as a _saliency
    map_.
     - Reliable means we should be able to check whether the saliency map is
-    picking up on true properties of the model $f$ and not spurious
+    picking up on true properties of the model $f_{\theta}$ and not spurious
     features
     resulting from structure in $x^\ast$ alone.
 
 1. **Approach**. We will define saliency maps using gradients $\nabla_{x}
-f\left(x\right)$. We will then define negative controls ("sanity checks") that
+f_{\theta}\left(x\right)$. We will then define negative controls ("sanity checks") that
 allow us to test whether the properties we observe are meaningful.
 
 ## Motivation
@@ -113,42 +113,40 @@ text](https://captum.ai/tutorials/Multimodal_VQA_Interpret) data.
 
 1. *Gradient Explanation*. Suppose that test sample $x^\ast$ is predicted to
 belong to class $k$. We use
-$$E_{\text{grad}}\left(x^*\right) = \nabla_{x}f_{k}\left(x^\ast\right)$$
+$$E_{\text{grad}}\left(x^*, f\right) = \nabla_{x}f_{\theta,k}\left(x^\ast\right)$$
 as our explanation. This gradient measures how a small change in each input
 pixel changes the probability of the sample belonging to class $k$. Regions of
 pixels with the largest magnitude gradient values are considered the most
 important to the classification.
 
-1. Notice that $\nabla_{x}f_{k}$ is a gradient with respect to the input,
+1. Notice that $\nabla_{x}f_{k,
+\theta}$ is a gradient with respect to the input,
 _not_ the gradient $\nabla_{\theta}L\left(\theta\right)$ of the training loss
 with respect to the model parameters $\theta$, the usual quantity for gradient
-descent training. The gradient $\nabla_{x}f_{k}$ used for explanation is
+descent training. The gradient $\nabla_{x}f_{\theta,k}$ used for explanation is
 constructed independently of the loss and is focused on perturbations of the
 input, not the model parameters.
 
-(give a picture)
-
 1. *Input $\cdot$ Gradient*. A related approach considers the explanation,
 $$
-E_{\text{grad-input}}\left(x^*\right) = x^*\cdot\nabla_{x}f_{k}\left(x^\ast\right)
+E_{\text{grad-input}}\left(x^*, f_{\theta}\right) = x^*\cdot\nabla_{x}f_{k,
+theta}\left(x^\ast\right)
 $$
 the pointwise multiplication of the original image with the same gradient from
 $E_{\text{grad}}$. This choice is motivated by the fact that it will downweight
 darker regions of the image, where $x$ has values closer to 0.
 
 1. *Integrated Gradients*. A difficulty with using the gradient
-$\nabla_{x}f_{,k}$ for classification models is that gradients "saturate."
+$\nabla_{x}f_{\theta,k}$ for classification models is that gradients "saturate."
 Intuitively, if a model is very sure that $x^\ast$ belongs to class $k$, then
 small perturbations in $x^\ast$ won't affect the predicted class by much.
 Formally, this is because each coordinate of a softmax layer has gradient near
 zero when the input activations are either very positive or very negative.
 
-(picture of saturation)
-
 To address this, the integrated gradients method considers gradients along a
 path of shrunken versions of $x^\ast$. Specifically, we compute,
 $$
-E_{\text{IG}}\left(x^*\right) = \int \nabla_{x}f_{k}\left(\alpha x^\ast +
+E_{\text{IG}}\left(x^*, f_{\theta}\right) = \int \nabla_{x}f_{\theta,k}\left(\alpha x^\ast +
 \left(1 - \alpha\right)x_{0}\right) dx
 $$
 where $x_0$ is some baseline input (like the black, all zeros image). At these
@@ -160,19 +158,17 @@ of saturated gradients decreases.
 1. *SmoothGrad*. This method averages gradient explanations across many "noisy"
 versions of the input.
 $$
-E_{\text{SG}}\left(x^*\right) = \frac{1}{B}\sum_{b = 1}^{B} E_{\text{grad}}\left(x^* + \epsilon_{b}\right)
+E_{\text{SG}}\left(x^*, f_{\theta}\right) = \frac{1}{B}\sum_{b = 1}^{B} E_{\text{grad}}\left(x^* + \epsilon_{b}, f_{\theta}\right)
 $$
 where $\epsilon_{b} \sim \mathcal{N}\left(0, \sigma^2\right)$ for some noise
 level $\sigma^2$ and monte carlo sample size parameter $B$.  Qualitatively, this
 tends to result in smoother attributions across neighboring pixels.
 
-(another explanatory picture)
-
 ## Sanity Checks
 
 1. @adebayo2018 was concerned that saliency maps might be picking up on
 intrinsic features of the test images $x^\ast$ rather than any meaningful
-characteristic of the models $f$. To this end, they designed negative
+characteristic of the models $f_{\theta}$. To this end, they designed negative
 control experiments that can be used to quantify whether a saliency map method
 learned meaningful patterns.
 
@@ -189,9 +185,9 @@ passes the test if the similarities decreases across $l = L, L - 1, \dots, 1$.
 
 ```
 Input:
-  trained model f with layers 1, ..., L (each with parameters θ^l)
+  trained model f_θ with layers 1, ..., L (each with parameters θ^l)
   test input x*
-  explanation method E(·, f)   # e.g. gradient, integrated gradients,...
+  explanation method E(·, f_θ)   # e.g. gradient, integrated gradients,...
   similarity method Sim(E, E'), # e.g., Spearman correlation between pixel values
 
 # Baseline explanation on fully trained model
@@ -216,7 +212,7 @@ simpler methods seem to do better than many of the more sophisticated ones.
 
 1. These qualitative results are quantified through the `Sim()` function. The
 fact that some correlations never decay (especially in the ABS case, which
-considers $\left|E\left(x^*, f\right)\right|$) suggests that at least some of
+considers $\left|E\left(x^*, f_θ\right)\right|$) suggests that at least some of
 the structure in the attributions is irrelevant. @adebayo2018 argues that these
 quantiative checks are necessary, because explainability outputs that seem
 qualitatively plausible collapse under quantitative scrutiny.
@@ -257,7 +253,7 @@ Sim(E_true, E_random)
 1. This method can be used to generate figures like the one below. The takeaway
 from this figure is again that some well-known saliency map methods are simply
 capturing properties of the test inputs $x^\ast$ rather than meaningful
-characteristics of the trained model $f$.
+characteristics of the trained model $f_{\theta}$.
 
 ![](figures/sanity_data_randomization.png)
 
@@ -344,23 +340,24 @@ print(target_class)
 ```
 
 1. Captum provides a consistent interface to several saliency map methods.
-$E_{\text{grad}}\left(x^*, f\right)$ is implemented by the `Saliency` class,
+$E_{\text{grad}}\left(x^*, f_{\theta}\right)$ is implemented by the `Saliency` class,
 which needs to be intialized on the trained model and which can then be applied
 to any sample $x^*$.
 
 ```{python}
+#| label: gradients
 saliency  = Saliency(model)
 attr_grad = saliency.attribute(input_tensor, target=target_class)
 ```
 
-1. Nearly the same interface works with $E_{\text{IG}}\left(x^*, f\right)$,
+1. Nearly the same interface works with $E_{\text{IG}}\left(x^*, f_{\theta}\right)$,
 except that we have to specify how finely we should discretize the integration
 path.
 
 ```{python}
+#| label: integrated-gradients
 ig = IntegratedGradients(model)
 attr_ig = ig.attribute(input_tensor, target=target_class, n_steps=50)
-
 ```
 
 1. Finally, we visualize the results. `IntegratedGradients` are better able to
@@ -368,7 +365,8 @@ highlight the bird, so we must be in a case where gradients are saturating.
 
 ```{python}
 #| label: captum-plot
-alt.data_transformers.enable("vegafusion")
+alt.data_transformers.enable("default")
+alt.data_transformers.disable_max_rows()
 
 df = pd.concat([
     attribution_to_df(attr_grad, "Gradient Saliency"),
@@ -413,6 +411,7 @@ for layer_name in cascade_layers:
 1. Even after the first layer, the spearman correlations drop off.
 
 ```{python}
+#| label: rank-correlations
 orig_flat = attr_flat(attr_ig)
 cascade_dfs = [attribution_to_df(attr, layer_order[i]) for i, attr in enumerate(attrs.values())]
 [{"layer": l, "rank correlation": spearmanr(orig_flat, attr_flat(a)).statistic} for l, a in attrs.items()]
