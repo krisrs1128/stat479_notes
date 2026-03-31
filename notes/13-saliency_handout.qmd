@@ -12,7 +12,7 @@ execute:
     echo: true
     message: false
     warning: false
-    cache: false
+    cache: true
     eval: true
 ---
 
@@ -77,7 +77,7 @@ below shows that the model learned a shortcut, a hospital-specific tag (top
 right corner) that correlates with diagnosis because of class imbalance across
 hospitals.
 
-   ![](figures/covid_shortcut.png)
+   ![](figures/covid_shortcut.png){width=70%}
 
 1. _Model validation_. Therefore, saliency maps can be used as a form of model
 validation. If the map highlights the right object, the model is using the right
@@ -111,9 +111,13 @@ $$
 E_{\text{grad-input}}\left(x^*, f_{\theta}\right) = x^*\odot\nabla_{x}f_{k,
 \theta}\left(x^\ast\right).
 $$
-This suppresses attributions in the darker regions where $x_j^\ast$ \approx 0$.
+This suppresses attributions in the darker regions where $x ^\ast \approx 0$.
 
-1. *Integrated Gradients*. The gradients of the softmax function vanish whwen the activations are large. Therefore, a confident model will have $\nabla_x f_{\theta, k}$ near zero even on important pixels. Integrated gradients address this by averaging over a path from a baseline $x_0$ (e.g., a black, all zeros image) to $x^\ast$,
+    _Exercise: What are the dimensions $E_{\text{grad}}$ and $E_{\text{grad-input}}$? when applied to a $W\times H$ image? How is that visualized as a saliency map?_
+
+    _Exercise: The Input $\odot$ Gradient method always assigns zero attribution to pixels where $x^\ast_j = 0$._
+
+1. *Integrated Gradients*. The gradients of the softmax function vanish when the activations are large. Therefore, a confident model will have $\nabla_x f_{\theta, k}$ near zero even on important pixels. Integrated gradients address this by averaging over a path from a baseline $x_0$ (e.g., a black, all zeros image) to $x^\ast$,
 $$
 E_{\text{IG}}\left(x^*, f_{\theta}\right) = \int \nabla_{x}f_{\theta,k}\left(\alpha x^\ast +
 \left(1 - \alpha\right)x_{0}\right) dx
@@ -122,12 +126,15 @@ For intermediate values along this path, the activations are smaller and the
 gradients will not have yet saturated. In practice, we approximate this integral
 by a summation along a fine grid.
 
-![Figure from @Sturmfels2020](figures/integrated_gradients_animation.gif)
+   ![Figure from @Sturmfels2020](figures/integrated_gradients_animation.gif)
 
 1. *SmoothGrad*. averages gradient explanations over noisy copies of the input,
-$$
-> $$E_{\text{SG}}(x^*, f_{\theta}) = \frac{1}{B}\sum_{b = 1}^{B} E_{\text{grad}}\left(x^* + \epsilon_{b}, f_{\theta}\right), \quad \epsilon_{b} \sim \mathcal{N}(0, \sigma^2).$$
+$$E_{\text{SG}}(x^*, f_{\theta}) = \frac{1}{B}\sum_{b = 1}^{B} E_{\text{grad}}\left(x^* + \epsilon_{b}, f_{\theta}\right), \quad \epsilon_{b} \sim \mathcal{N}(0, \sigma^2).$$
 This averaging results in smoother attribution maps.
+
+    _Exercise: Compare and contrast one of these methods with SHAP._
+
+    _Exercise: TRUE FALSE The Integrated Gradients and Gradient approaches give the same saliency map for a linear model $f\left(x\right) = w^\top x$._
 
 ## Sanity Checks
 
@@ -142,34 +149,35 @@ layer from top to bottom. Any structure in the explanation that we still observe
 reflects the model architecture, not what the model learned from the data. If
 this is the only structure we see in the original saliency map, the method fails
 the sanity check.
+   ```
+   Input:
+     trained model f_θ with layers 1, ..., L (each with parameters θ^l)
+     test input x*
+     explanation method E(·, f_θ)   # e.g. gradient, integrated gradients,...
+     similarity method Sim(E, E'), # e.g., Spearman correlation between pixel values
 
-```
-Input:
-  trained model f_θ with layers 1, ..., L (each with parameters θ^l)
-  test input x*
-  explanation method E(·, f_θ)   # e.g. gradient, integrated gradients,...
-  similarity method Sim(E, E'), # e.g., Spearman correlation between pixel values
+   # Baseline explanation on fully trained model
+   E_original = E(x*, f_θ)
+   explanations = [E_original]
 
-# Baseline explanation on fully trained model
-E_original = E(x*, f_θ)
-explanations = [E_original]
+   # Cascade from top layer down to bottom
+   for l = L, L-1, ..., 1:
+       θ^l ~ N(0, σ²) # randomize layer l
+       E^(l) = E(x*, f_θ) # recompute explanation on partially-randomized model
+       explanations.append(E^(l))
 
-# Cascade from top layer down to bottom
-for l = L, L-1, ..., 1:
-    θ^l ~ N(0, σ²) # randomize layer l
-    E^(l) = E(x*, f_θ) # recompute explanation on partially-randomized model
-    explanations.append(E^(l))
-
-# For each E^(l), return similarity to E_original
-similarities = [Sim(E^(l), E_original) for each E^(l) in explanations]
-```
+   # For each E^(l), return similarity to E_original
+   similarities = [Sim(E^(l), E_original) for each E^(l) in explanations]
+   ```
 
 1. An explanation method passes if the similarity to the original degrades as
 more layers are randomized. The results show that Gradient and GradCam pass, but
 Guided BackProp and Guided GradCAM are nearly unchanged (their explanations are
 nearly the same in the training and randomized settings).
 
-![](figures/cascading_randomization.png)
+   ![](figures/cascading_randomization.png)
+
+   _Exercise: Why is cascading randomization done from the top layer down? Why not randomize from the bottom layer up?_
 
 1. A subtlety is that for some methods, the absolute value of the saliency map
 $\left|E\left(x^*, f_θ\right)\right|$ has high correlation with the original map
@@ -179,45 +187,49 @@ property of the original test image. Overall, quantitative checks matter here
 because saliency maps that look plausible to the eye can clearly fail under a
 quantitative measure like rank correlation.
 
-![](figures/cascading_quantified.png)
+   ![](figures/cascading_quantified.png)
+
+   _Exercise: Pick one of the panel from the figure above. Explain the associated experimental setup, how to read the output, and the implications for the saliency map methods that are considered._
 
 1. **Data randomization** Instead of corrupting the model, this negative control
-corrupts the data. Specifically, it permutes training labels $y_i$ adn retrains
+corrupts the data. Specifically, it permutes training labels $y_i$ and retrains
 to high accuracy on the training data (this is possible with flexible
 architectures, even if there is no signal). The model memorizes random
-associations, so any explanation that is sensitive to the true $x \text{vs. } y$
+associations, so any explanation that is sensitive to the true $x$ vs. $y$
 relationships learned by $f_\theta$ should return a very different, random
-looking map after
-corruption.
+looking map after corruption.
+   ```
+   Input:
+     training data {(x_i, y_i)}_{i=1}^{n}
+     model architecture F
+     test input x*
+     explanation method E(·, f)
+     similarity method Sim(E, E')
 
-```
-Input:
-  training data {(x_i, y_i)}_{i=1}^{n}
-  model architecture F
-  test input x*
-  explanation method E(·, f)
-  similarity method Sim(E, E')
+   # Train model on true labels
+   f_true = train(A, {(x_i, y_i)})
+   E_true = E(x*, f_true)
 
-# Train model on true labels
-f_true = train(A, {(x_i, y_i)})
-E_true = E(x*, f_true)
+   # Permute labels and train on randomized data
+   π = random_permute(1, ..., n)
+   f_random = train(F, {(x_i, y_{π(i)})})   # train until 95% training accuracy on random labels
+   E_random = E(x*, f_random)
 
-# Permute labels and train on randomized data
-π = random_permute(1, ..., n)
-f_random = train(F, {(x_i, y_{π(i)})})   # train until 95% training accuracy on random labels
-E_random = E(x*, f_random)
+   # Evaluate
+   Sim(E_true, E_random)
+   ```
 
-# Evaluate
-Sim(E_true, E_random)
-```
+   _Exercise: What are the relative compute costs for the two randomization tests? How do they scale with the samples?_
 
 1. Again, Gradient and GradCAM pass the sanity check. Guided BackProp gives
 plausible results even in the corrupted case, so it fails. For Integrated
 Gradients, the signed maps change but the absolute value versions do not.
 
-![](figures/sanity_data_randomization.png)
+   ![](figures/sanity_data_randomization.png){width=100%}
 
-![](figures/data_randomization_quantified.png)
+   ![](figures/data_randomization_quantified.png){width=75%}
+
+   _Exercise: For some models, we have access to the model's architecture definition but not the model weights. Which if any of the sanity checks discussed by @adebayo2018 can still be used?_
 
 1. The takeaway from this paper is that new explanation methods require the same
 methodological rigor that we apply when developing new models. Visual
@@ -229,7 +241,7 @@ plausibility alone is not strong enough evidence.
 using a pretrained ResNet18 model. The block below defines some helper functions
 for preprocessing and plotting.
 
-```{python}
+   ```{python}
 #| label: captum-setup
 import torch
 import numpy as np
@@ -266,56 +278,61 @@ def attribution_to_df(tensor, label):
     ys, xs = np.mgrid[0:h, 0:w]
     return pd.DataFrame({"x": xs.ravel(), "y": ys.ravel(),
                          "value": arr.ravel(), "method": label})
-```
+   ```
 
-1.  I took this image from wikimedia's [image of the day](https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day#/media/File:Little_corella_(Cacatua_sanguinea_gymnopis)_Blanchetown.jpg) (March 24). The pretrained Residual Network model correctly identifies the image as showing a type of cockatoo [Class 89](https://salient-imagenet.cs.umd.edu/explore/class_89/feature_675.html)_.
+1. I took this image from wikimedia's [image of the day](https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day#/media/File:Little_corella_(Cacatua_sanguinea_gymnopis)_Blanchetown.jpg) (March 24).
 
-```{python}
+   ![](https://raw.githubusercontent.com/krisrs1128/stat479_notes/refs/heads/master/notes/figures/corella.jpg){width=30%}
+
+1. The pretrained Residual Network model correctly identifies the image as showing a type of cockatoo [Class 89](https://salient-imagenet.cs.umd.edu/explore/class_89/feature_675.html).
+
+   ```{python}
 #| label: captum-run
 model = load_model()
 img = Image.open("figures/corella.jpg").convert("RGB")
 input_tensor = preprocess(img)
 target_class = predict(model, input_tensor)
 print(target_class)
-```
+   ```
 
 1. `Saliency` implements $E_{\text{grad}}\left(x^*, f_{\theta}\right)$, which
-which is initialized on the trained model and and applied to samples $x^*$.
+is initialized on the trained model and applied to samples $x^*$.
 
-```{python}
+   ```{python}
 #| label: gradients
 saliency  = Saliency(model)
 attr_grad = saliency.attribute(input_tensor, target=target_class)
-```
+   ```
 
 1. The `IntegratedGradients` interface is nearly the same except for `n_steps`,
 which controls how finely we should discretize the integration path.
 
-```{python}
+   ```{python}
 #| label: integrated-gradients
 ig = IntegratedGradients(model)
 attr_ig = ig.attribute(input_tensor, target=target_class, n_steps=50)
-```
+   ```
 
-1. `IntegratedGradients` highlights the bird moer clearly, so we must be in a
+1. `IntegratedGradients` highlights the bird more clearly, so we must be in a
 case where gradients are saturating.
 
-```{python}
+   ```{python}
 #| label: data-transformers
 #| echo: false
 #| output: false
+alt.renderers.enable("png", scale_factor=2.0)
 alt.data_transformers.enable("default")
 alt.data_transformers.disable_max_rows()
-```
+   ```
 
-```{python}
+   ```{python}
 #| label: captum-plot
 df = pd.concat([
     attribution_to_df(attr_grad, "Gradient Saliency"),
     attribution_to_df(attr_ig,   "Integrated Gradients"),
 ])
 
-alt.Chart(df).mark_rect().encode(
+chart = alt.Chart(df).mark_rect().encode(
     x=alt.X("x:O", axis=None),
     y=alt.Y("y:O", axis=None),
     color=alt.Color("value:Q")
@@ -323,12 +340,31 @@ alt.Chart(df).mark_rect().encode(
     facet=alt.Facet("method:N", title=None),
     columns=2,
 ).configure_view(strokeWidth=0)
-```
+   ```
+
+   ```{python}
+#| label: chart-output-1
+#| echo: false
+from IPython.display import Image
+import io
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+import vl_convert as vlc
+
+
+png_bytes = vlc.vegalite_to_png(chart.to_json(), scale=2)
+fig, ax = plt.subplots()
+ax.imshow(mpimg.imread(io.BytesIO(png_bytes)));
+ax.axis("off")
+plt.tight_layout(pad=0)
+plt.show()
+   ```
+
 
 1. We next run the model randomization test, randomizing layers from the top
 down and computing the integrated gradients attribution at each step.
 
-```{python}
+   ```{python}
 #| label: cascade-randomization
 #| output: false
 import copy
@@ -346,25 +382,25 @@ for layer_name in cascade_layers:
     for param in model_rand.get_submodule(layer_name).parameters():
         torch.nn.init.normal_(param.data, std=0.1)
     attrs[layer_name] = IntegratedGradients(model_rand).attribute(input_tensor, target=target_class)
-```
+   ```
 
 1. Even after the first layer, the Spearman correlations drop off.
 
-```{python}
+   ```{python}
 #| label: rank-correlations
 orig_flat = attr_flat(attr_ig)
 cascade_dfs = [attribution_to_df(attr, layer_order[i]) for i, attr in enumerate(attrs.values())]
 [{"layer": l, "rank correlation": spearmanr(orig_flat, attr_flat(a)).statistic} for l, a in attrs.items()]
-```
+   ```
 
-We can see this effect in the visualizations. Even after randomizing the top
-layer, we no longer see the cockatoo appearing in the explanation.
+   We can see this effect in the visualizations. Even after randomizing the top
+   layer, we no longer see the cockatoo appearing in the explanation.
 
-```{python}
+   ```{python}
 #| label: cascade-plot
 df_cascade = pd.concat(cascade_dfs)
 
-alt.Chart(df_cascade).mark_rect().encode(
+chart = alt.Chart(df_cascade).mark_rect().encode(
     x=alt.X("x:O", axis=None),
     y=alt.Y("y:O", axis=None),
     color=alt.Color("value:Q")
@@ -372,4 +408,15 @@ alt.Chart(df_cascade).mark_rect().encode(
     facet=alt.Facet("method:N", title=None, sort=layer_order),
     columns=3,
 )
-```
+   ```
+
+   ```{python}
+#| label: chart-output-2
+#| echo: false
+png_bytes = vlc.vegalite_to_png(chart.to_json(), scale=2)
+fig, ax = plt.subplots()
+ax.imshow(mpimg.imread(io.BytesIO(png_bytes)));
+ax.axis("off")
+plt.tight_layout(pad=0)
+plt.show()
+   ```
