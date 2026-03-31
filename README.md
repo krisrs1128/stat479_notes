@@ -9,6 +9,7 @@
 - [SHAP Computation](https://krisrs1128.github.io/stat479_notes/notes/10-shap_computation.html)
 - [Introduction to Deep Learning](https://krisrs1128.github.io/stat479_notes/notes/11-deep_learning_handout.html)
 - [Transformers](https://krisrs1128.github.io/stat479_notes/notes/12-transformers_handout.html)
+- [Saliency Maps](https://krisrs1128.github.io/stat479_notes/notes/13-saliency_handout.html)
 
 ## Case Studies
 - [Astronomy Case Study](https://krisrs1128.github.io/stat479_notes/activities/02-stellar_gp.html)
