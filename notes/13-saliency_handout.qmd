@@ -179,8 +179,9 @@ the sanity check.
 
    # For each E^(l), return similarity to E_original
    similarities = [Sim(E^(l), E_original) for each E^(l) in explanations]
+   ```
 
-   ![Model randomization compares a genuine and a control explanation.](figures/model_randomization_sketch.png){width=80%}
+   ![Model randomization compares a genuine and a control explanation.](figures/model_randomization_sketch.png){width=100%}
 
 1. An explanation method passes if the similarity to the original degrades as
 more layers are randomized. The results show that Gradient and GradCam pass, but
