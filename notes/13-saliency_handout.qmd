@@ -357,11 +357,13 @@ chart = alt.Chart(df).mark_rect().encode(
    ```{python}
 #| label: chart-output-1
 #| echo: false
-from IPython.display import Image
+#| fig-align: center
 import vl_convert as vlc
-
-Image(vlc.vegalite_to_png(chart.to_json(), scale=2))
+from pathlib import Path
+Path("figures/_chart1.png").write_bytes(vlc.vegalite_to_png(chart.to_json(), scale=2))
    ```
+
+   ![](figures/_chart1.png)
 
 
 1. We next run the model randomization test, randomizing layers from the top
@@ -416,5 +418,7 @@ chart = alt.Chart(df_cascade).mark_rect().encode(
    ```{python}
 #| label: chart-output-2
 #| echo: false
-Image(vlc.vegalite_to_png(chart.to_json(), scale=2))
+Path("figures/_chart2.png").write_bytes(vlc.vegalite_to_png(chart.to_json(), scale=2))
    ```
+
+   ![](figures/_chart2.png)
