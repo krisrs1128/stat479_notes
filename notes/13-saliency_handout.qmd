@@ -12,7 +12,7 @@ execute:
     echo: true
     message: false
     warning: false
-    cache: true
+    cache: false
     eval: true
 ---
 
@@ -77,14 +77,20 @@ below shows that the model learned a shortcut, a hospital-specific tag (top
 right corner) that correlates with diagnosis because of class imbalance across
 hospitals.
 
-   ![](figures/covid_shortcut.png){width=70%}
+   ![Figure from @DeGrave2021](figures/covid_shortcut.png){width=70%}
 
-1. _Model validation_. Therefore, saliency maps can be used as a form of model
-validation. If the map highlights the right object, the model is using the right
-information. For example, @ref found ___. But as @adebayo2018 caution, this
-logic is not sufficient without additional checks. Some saliency methods
-highlight visually salient regions regardless of what the model has actually
-learned.
+1. _Scientific Discovery_. In scientific applications our goal is often
+mechanistic understanding, not just predictive accuracy. For example, @Labe2021
+trained a model that predicts decade (e.g., 1970s or 2020s) from climate
+simulation outputs. Their saliency map method showed that the model focused on
+the north atlantic region when making these predictions.
+
+   ![Figure from @Bommer2024.](figures/climate_saliency.png){width=90%}
+
+1. _Need for Checks_. More generally, saliency maps can be used as a form of
+model checking and explanation.  But as @adebayo2018 caution, this logic is not
+sufficient without additional checks.  Some saliency methods highlight visually
+salient regions regardless of what the model has actually learned.
 
 1. _Beyond Images_. Though we focus on images, gradient-based explanations apply
 to other types of data, e.g., see @Yang2023 for an application to genomic
@@ -100,16 +106,19 @@ $$E_{\text{grad}}\left(x^*, f_{\theta}\right) = \nabla_{x}f_{\theta,k}\left(x^\a
 which measures how a small change to each input pixel changes the class $k$
 probability. Pixels $d$ with the largest
 $\left[|E_{\text{grad},f_{\theta}}|\right]_{d}$ matter the most for
-the classification. Note that $\nabla_{x}f_{k, \theta}$ is a gradient with
+the classification. Note that $\nabla_{x}f_{\theta,k}$ is a gradient with
 respect to the input, _not_ the gradient $\nabla_{\theta}L\left(\theta\right)$
 of the training loss with respect to the model parameters $\theta$, which is
 used during gradient descent training.
 
+   ![Saliency measures class sensitivity to pixel perturbations.](figures/pixel_sensitivity.png){width=90%}
+
+    _Exercise: How would you modify this picture for a pixel that was in a nearly black region and which, when perturbed, makes no difference to the class $k$ prediction?_
+
 1. *Input $\odot$ Gradient*. We can downweight the background by multiplying the
 gradient by the input elementwise,
 $$
-E_{\text{grad-input}}\left(x^*, f_{\theta}\right) = x^*\odot\nabla_{x}f_{k,
-\theta}\left(x^\ast\right).
+E_{\text{grad-input}}\left(x^*, f_{\theta}\right) = x^*\odot\nabla_{x}f_{\theta,k}\left(x^\ast\right).
 $$
 This suppresses attributions in the darker regions where $x ^\ast \approx 0$.
 
@@ -126,6 +135,8 @@ For intermediate values along this path, the activations are smaller and the
 gradients will not have yet saturated. In practice, we approximate this integral
 by a summation along a fine grid.
 
+   ![Integrated gradients evaluates gradients along a path of shrunken images.](figures/integrated_gradients_sketch.png){width=90%}
+
    ![Figure from @Sturmfels2020](figures/integrated_gradients_animation.gif)
 
 1. *SmoothGrad*. averages gradient explanations over noisy copies of the input,
@@ -141,8 +152,8 @@ This averaging results in smoother attribution maps.
 1. A key question is whether a saliency map depends on the trained model
 $f_{\theta}$ or only on the test image $x^\ast$. @adebayo2018 study two
 randomization tests to answer this. They can be viewed as negative controls --
-setups that deliberately have no signal and which serves as a reference point
-for interpretation.
+setups that deliberately have no signal and which serve as a reference point for
+interpretation.
 
 1. **Model randomization** replaces trained weights with random weights layer by
 layer from top to bottom. Any structure in the explanation that we still observe
@@ -168,7 +179,8 @@ the sanity check.
 
    # For each E^(l), return similarity to E_original
    similarities = [Sim(E^(l), E_original) for each E^(l) in explanations]
-   ```
+
+   ![Model randomization compares a genuine and a control explanation.](figures/model_randomization_sketch.png){width=80%}
 
 1. An explanation method passes if the similarity to the original degrades as
 more layers are randomized. The results show that Gradient and GradCam pass, but
@@ -339,25 +351,16 @@ chart = alt.Chart(df).mark_rect().encode(
 ).properties(width=200, height=200).facet(
     facet=alt.Facet("method:N", title=None),
     columns=2,
-).configure_view(strokeWidth=0)
+).configure_view(strokeWidth=0);
    ```
 
    ```{python}
 #| label: chart-output-1
 #| echo: false
 from IPython.display import Image
-import io
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
 import vl_convert as vlc
 
-
-png_bytes = vlc.vegalite_to_png(chart.to_json(), scale=2)
-fig, ax = plt.subplots()
-ax.imshow(mpimg.imread(io.BytesIO(png_bytes)));
-ax.axis("off")
-plt.tight_layout(pad=0)
-plt.show()
+Image(vlc.vegalite_to_png(chart.to_json(), scale=2))
    ```
 
 
@@ -407,16 +410,11 @@ chart = alt.Chart(df_cascade).mark_rect().encode(
 ).properties(width=150, height=150).facet(
     facet=alt.Facet("method:N", title=None, sort=layer_order),
     columns=3,
-)
+);
    ```
 
    ```{python}
 #| label: chart-output-2
 #| echo: false
-png_bytes = vlc.vegalite_to_png(chart.to_json(), scale=2)
-fig, ax = plt.subplots()
-ax.imshow(mpimg.imread(io.BytesIO(png_bytes)));
-ax.axis("off")
-plt.tight_layout(pad=0)
-plt.show()
+Image(vlc.vegalite_to_png(chart.to_json(), scale=2))
    ```
