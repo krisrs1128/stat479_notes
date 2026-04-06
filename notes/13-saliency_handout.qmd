@@ -122,7 +122,7 @@ E_{\text{grad-input}}\left(x^*, f_{\theta}\right) = x^*\odot\nabla_{x}f_{\theta,
 $$
 This suppresses attributions in the darker regions where $x ^\ast \approx 0$.
 
-    _Exercise: What are the dimensions $E_{\text{grad}}$ and $E_{\text{grad-input}}$? when applied to a $W\times H$ image? How is that visualized as a saliency map?_
+    _Exercise: What are the dimensions $E_{\text{grad}}$ and $E_{\text{grad-input}}$ when applied to a $W\times H$ image? How is that visualized as a saliency map?_
 
     _Exercise: The Input $\odot$ Gradient method always assigns zero attribution to pixels where $x^\ast_j = 0$._
 
@@ -139,7 +139,7 @@ by a summation along a fine grid.
 
    ![Figure from @Sturmfels2020](figures/integrated_gradients_animation.gif)
 
-1. *SmoothGrad*. averages gradient explanations over noisy copies of the input,
+1. *SmoothGrad* averages gradient explanations over noisy copies of the input,
 $$E_{\text{SG}}(x^*, f_{\theta}) = \frac{1}{B}\sum_{b = 1}^{B} E_{\text{grad}}\left(x^* + \epsilon_{b}, f_{\theta}\right), \quad \epsilon_{b} \sim \mathcal{N}(0, \sigma^2).$$
 This averaging results in smoother attribution maps.
 
