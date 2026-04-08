@@ -10,3 +10,7 @@ notes/figures/*.mov
 data/
 .DS_Store
 *cache*
+activities/*files*
+outputs/
+exercises/*files*
+*.vscode
