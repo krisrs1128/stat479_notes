@@ -2,22 +2,25 @@
 
 Adapted from microsoft/solar-farms-mapping (MIT License).
 """
-import numpy as np
-import torch
-import torch.nn as nn
-import rasterio
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+from matplotlib.lines import Line2D
 from rasterio.mask import mask as rio_mask
-import shapely
 from shapely import geometry
-import fiona
-import cv2
+from skimage.draw import polygon
 from skimage.measure import find_contours
 from skimage.transform import resize
-from skimage.draw import polygon
+import cv2
+import fiona
+import json
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-from matplotlib.lines import Line2D
+import numpy as np
+import os
+import rasterio
 import seaborn as sns
+import shapely
+import torch
+import torch.nn as nn
+import urllib.request
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -102,6 +105,18 @@ class UnetModel(nn.Module):
 
 
 def load_model(checkpoint_path):
+    if checkpoint_path.startswith("http"):
+        filename = checkpoint_path.split("/")[-1]
+        cached = os.path.join(torch.hub.get_dir(), filename)
+        if not os.path.exists(cached):
+            urllib.request.urlretrieve(checkpoint_path, cached)
+        try:
+            return load_model(cached)
+        except Exception:
+            os.unlink(cached)
+            print("Cached file appears corrupted; re-downloading ...")
+            urllib.request.urlretrieve(checkpoint_path, cached)
+            return load_model(cached)
     model = UnetModel().to(device)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
@@ -129,6 +144,10 @@ def scale(x, min_val, max_val, a=0, b=255):
 
 
 def get_all_geoms(path):
+    if path.startswith("http"):
+        with urllib.request.urlopen(path) as response:
+            data = json.loads(response.read())
+        return [feat["geometry"] for feat in data["features"]]
     with fiona.open(path) as f:
         return [row["geometry"] for row in f]
 
@@ -141,6 +160,34 @@ def get_sentinel_image(geom, buffer, url=SENTINEL_URL):
         with rasterio.open(url) as f:
             image, _ = rio_mask(f, [bounding_geom], crop=True, all_touched=True)
     return np.rollaxis(image, 0, 3)
+
+
+def sample_point_in_region(geom):
+    """Sample a random point from the footprint bounding box."""
+    footprint = geom.buffer(0.0) if hasattr(geom, "geom_type") else geometry.shape(geom).buffer(0.0)
+    minx, miny, maxx, maxy = footprint.bounds
+    point = geometry.Point(
+        np.random.uniform(minx, maxx),
+        np.random.uniform(miny, maxy),
+    )
+    return footprint, point
+
+
+def test_point_location(point, footprint, buffer, image_shape):
+    """Map a geographic point to (row, col) in the resized crop image."""
+    crop_bounds = footprint.envelope.buffer(buffer).envelope.bounds
+    minx, miny, maxx, maxy = crop_bounds
+    height, width = image_shape[:2]
+
+    col = int(np.clip(np.round((point.x - minx) / (maxx - minx) * (width - 1)), 0, width - 1))
+    row = int(np.clip(np.round((maxy - point.y) / (maxy - miny) * (height - 1)), 0, height - 1))
+    return row, col
+
+
+def sample_test_points(geom, buffer, image_shape):
+    """Sample a random test point from footprint bounds and map to row/col."""
+    footprint, point = sample_point_in_region(geom)
+    return test_point_location(point, footprint, buffer, image_shape)
 
 
 def preprocess(image, size=256):
@@ -167,8 +214,8 @@ def predict_mask(model, x_tensor, min_area=5):
 def plot_sample_prediction(image, pred):
     image = resize(image, (512, 512, 3), anti_aliasing=True)
     pred = resize(pred, (512, 512), anti_aliasing=True)
-    cmap = ListedColormap(sns.color_palette(["#3498db", "#FFD700"]).as_hex())
-    legend = [Line2D([0], [0], marker="o", color="w", label="Solar Farm Prediction",
+    cmap = ListedColormap(sns.color_palette(["#8C030E", "#8C030E"]).as_hex())
+    legend = [Line2D([0], [0], marker="o", color="w", label="Solar Farm pred",
                      markerfacecolor=cmap(1), markersize=15)]
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
@@ -179,4 +226,41 @@ def plot_sample_prediction(image, pred):
                    interpolation="none", cmap=cmap, vmin=0, vmax=1)
     axes[1].axis("off")
     axes[1].legend(handles=legend, bbox_to_anchor=(1, 1))
+    plt.tight_layout()
+
+
+def plot_saliency_comparison(rgb, pred, heatmap, test_row, test_col, crop_radius=35):
+    """Plot RGB, prediction mask, and integrated gradients heatmap side-by-side.
+    """
+
+    heatmap_cmap = LinearSegmentedColormap.from_list("solar_ig", ["#8BB4D9", "#ffffff", "#A60D1A"])
+    mask_cmap = ListedColormap(["#D92938"])
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+    rows, cols = rgb.shape[:2]
+    x_min = max(test_col - crop_radius, 0)
+    x_max = min(test_col + crop_radius, cols - 1)
+    y_min = max(test_row - crop_radius, 0)
+    y_max = min(test_row + crop_radius, rows - 1)
+
+    axes[0].imshow(rgb)
+    axes[0].set_title("Sentinel-2 RGB")
+    axes[0].axis("off")
+
+    axes[1].imshow(rgb)
+    axes[1].imshow(np.ma.masked_where(pred == 0, pred), alpha=0.5, cmap=mask_cmap)
+    axes[1].scatter(test_col, test_row, s=50, c="#8C030E", edgecolors="black")
+    axes[1].set_title("Prediction")
+    axes[1].axis("off")
+
+    axes[2].imshow(rgb)
+    axes[2].imshow(heatmap, cmap=heatmap_cmap, alpha=0.6, vmin=-1, vmax=1)
+    axes[2].scatter(test_col, test_row, s=50, c="#8C030E", edgecolors="black")
+    axes[2].set_title("Integrated Gradients")
+    axes[2].axis("off")
+
+    for ax in axes:
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_max, y_min)
     plt.tight_layout()
