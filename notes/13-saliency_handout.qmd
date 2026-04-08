@@ -49,12 +49,12 @@ set.seed(2026)
 #| label: python-setup
 #| echo: false
 # includes the SHAP package. Can install it using,
-# > conda env create -f stat479_week6.yml
-# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week11.yml
+# > conda env create -f stat479_week13.yaml
+# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13.yaml
 use_condaenv("stat479_week13")
 ```
 
-_[Readings](https://papers.nips.cc/paper_files/paper/2018/file/294a8ed24b1ad22ec2e7efea049b8737-Paper.pdf)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/13-saliency_handout.qmd)_
+_[Readings](https://papers.nips.cc/paper_files/paper/2018/file/294a8ed24b1ad22ec2e7efea049b8737-Paper.pdf)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/13-saliency_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13.yaml)_
 
 Items marked $^{\dagger}$ are not in the required reading and will not be
 tested.
