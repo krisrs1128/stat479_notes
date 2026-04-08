@@ -15,6 +15,8 @@ execute:
   cache: false
 ---
 
+_[Notebook](https://github.com/krisrs1128/stat479_notes/blob/master/activities/13-solar_mapping.qmd), [Helpers](https://github.com/krisrs1128/stat479_notes/blob/master/activities/13-helpers.py), [Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/activities/stat479_week13_demo.yml)_
+
 ```{r}
 #| label: setup
 #| pred: python-setup
