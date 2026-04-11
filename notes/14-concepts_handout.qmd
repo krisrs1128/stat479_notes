@@ -1,0 +1,403 @@
+---
+title: "Concept Activation Vectors"
+author: Kris Sankaran
+date: 2026-04-13
+bibliography: references.bib
+format:
+  html:
+    embed-resources: true
+    html-math-method: mathjax
+    fig-align: center
+execute:
+    echo: true
+    message: false
+    warning: false
+    cache: false
+    eval: true
+---
+
+::: {style="display: none;"}
+$$
+\newcommand{\bs}[1]{\mathbf{#1}}
+\newcommand{\reals}{\mathbb{R}}
+\newcommand{\widebar}[1]{\overline{#1}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\indic}[1]{\mathbb{1}\left\{{#1}\right\}}
+\newcommand{\Earg}[1]{\mathbb{E}\left[{#1}\right]}
+\newcommand{\Esubarg}[2]{\mathbb{E}_{#1}\left[{#2}\right]}
+$$
+:::
+
+<style>
+.purple { color: #7458d1ff; } /* pastel purple */
+.orange { color: #fca020; } /* pastel orange */
+.green { color: #3bbe67ff; } /* pastel green */
+.darkblue { color: #4a9ceaff; } /* pastel dark blue */
+.pink { color: #ee6ec3ff; } /* pastel pink */
+</style>
+
+```{r}
+#| label: setup
+#| echo: false
+library(tidyverse)
+library(reticulate)
+theme_set(theme_classic() + theme(panel.border= element_rect(fill = NA, linewidth = .5)))
+set.seed(2026)
+```
+
+```{r}
+#| label: python-setup
+#| echo: false
+# includes the SHAP package. Can install it using,
+# > conda env create -f stat479_week13.yaml
+# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13.yaml
+use_condaenv("stat479_week13")
+```
+
+_[Readings]()_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/14-concepts_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week14.yaml)_
+
+We added background on TCAV tests that could appear in our exams. Items marked
+$^{\dagger}$ will not be tested.
+
+## Setup
+
+1. **Goal**. Determine whether a deep learning model $f$ uses an abstract
+concept when predicting a particular class. Further, localize the use of that
+concept to particular layers within the model.
+
+1. **Requirement**. The abstract concept should be formally input to the
+explanation method. We shouldn't have to "read the tea leaves" to deduce
+concepts after running the explanation method.
+
+    - Running example: Modern vision models trained on imagenet can accurately
+    classify zebra images. Do they use the concept "stripes"?
+
+    - We could apply saliency maps to see whether the classification is
+    sensitive to the parts of the image with the zebra, but this doesn't tell us
+    whether it's actually using the abstract "stripes" concept. It might have
+    just learned to associate "zebra" with horse-like animals in african
+    landscapes.
+
+1. **Approach.** Require the user to specify the abstract concept $c$ through a
+curated set of examples $D_{c} = \{x_{n}\}_{n = 1}^{N_{c}}$. Given these
+examples, learn a _concept activation vector_ $v_{c}^{l}$ representing concept
+$c$ in layer $l$'s activation space. Test whether $v_{c}^{l}$ is relevant to
+predicting class $k$.
+
+    - In the zebra example, $k$ is the class "zebra", $c$ is the concept
+    "stripes", and $D_{c}$ would be images with stripes more generally (e.g.,
+    tigers, flags, candy canes, ...)
+
+## Motivation
+
+1. _Formalization_. We motivated deep learning by hypothesizing that deep layers
+captured more complex, meaningful concepts. Our own examples suggested gave some
+evidence for this (e.g., the emotion probing experiment), and the literature
+more broadly supports this hypothesis. Nonetheless, for real-world applications,
+we haven't seen any way to turn this heuristic into a precise method for
+evaluating or finding concepts in our own data and models.
+
+1. _Shared language_. A more philosophical motivation is that finding
+representations that are shared by both people and machine learning models would
+make it easier to describe, control, and learn from the models. From this
+perspective, we need ways to put human and models representations in direct
+dialog with one another.
+
+    ![From Been Kim's 2024 ICLR keynote.](figures/kim_iclr.png){width=80%}
+
+1. This direct interface is especially important for tasks that require
+augmentation (tools that help people solve problems more effectively) rather
+than automation (taking the human out of the loop). For example, the GAN
+dissection program learned concepts for different parts of landscapes and
+allowed photoshop-like manipulation using representations of concepts like
+"grass" and "dome,"
+
+    ![This [website](https://gandissect.csail.mit.edu/) has other interactive examples.](figures/network_dissection.gif){width=60%}
+
+## Concept Vectors
+
+1. _Notation_. We divide the model $f$ at layer $l$, writing it as $f = h_{l}
+\circ g_{l}$. $g_l$ maps an input $x$ to layer $l$'s activations, while $h_{l}$
+transforms those intermediate activations to the model's final predictions. We
+require sets of concept-relevant and random reference images^[For concreteness,
+we'll discuss image concepts, but the method applies to other modalities as
+well.], denoted $D_{c}$ and $D_{r}$, respectively. We also set $\mathcal{D} =
+D_{c} \cup D_{r}$ and $N_{c}, N_{r}, N$ to be the sizes of $D_{c}$, $D_{r}$, and
+$\mathcal{D}$, respectively.
+
+1. Geometrically, if a model layer has "learned" concept $c$, then we expect
+images representing that concept to all be relatively more close together than
+the random references images.
+
+   Conversely, if the model is "unaware" of this concept, then it should be
+   scattered in a way similar to the random images.
+
+1. To make this intuition precise, write the average layer-$l$ activation across
+samples in $\mathcal{D}$ and $D_{c}$ as,
+   \begin{align}
+   \hat{\mu}_{\mathcal{D}} := \frac{1}{N} \sum_{x \in \mathcal{D}} g_{l}\left(x\right) \qquad \hat{\mu}_{c} := \frac{1}{N_{c}}\sum_{x \in D_{c}} g_{l}\left(x\right)
+   \end{align}
+   and define the _concept activation vector_ (CAV) $v_{c}^{l}$ as the unit
+   vector,
+   $$
+    v_{c}^{l} \propto \hat{\mu}_{c} - \hat{\mu}_{\mathcal{D}}
+   $$ {eq:cav}
+
+1. $^\dagger$ This method is an example of research leading to important
+simplifications. The original approach to CAV defined $v_{c}^{l}$ using support
+vector machines (SVM) trained to distinguish between $D_{c}$ and $D_{r}$. This
+could be computationally expensive, and @niebling argue that the much faster
+difference-in-means approach above gives comparable results as the original SVM
+approach.
+
+1. Even though this approach bypasses SVM training, it is actually quite related
+to a different classification algorithm, Linear Discriminant Analysis.
+Specifically, suppose that the activations had been drawn from a mixture of two
+Gaussians,
+   \begin{align}
+   g_{l}\left(x_{i}\right) \sim \begin{cases}
+   \mathcal{N}\left(\mu_c, \Sigma\right) \text{ if } x \in D_{c} \\
+   \mathcal{N}\left(\mu_{r}, \Sigma\right) \text{ if } x \in D_{r}
+   \end{cases}.
+   \end{align}
+  Then, the vector is $\Sigma^{-1}\left(\mu_{c} - \mu_{r}\right)$ is called the
+  discriminant vector, and it is orthogonal to the classification decision
+  boundary. The relative sizes $N_c$ and $N_r$ translate the decision boundary
+  but do not change its orientation.
+
+1. In the case that $\Sigma = I$, the discriminant vector is the same as the CAV
+in @eq-cav. In principle, we could estimate $\Sigma$ that is different from $I$,
+and we could even allow it to differ across $D_{c}$ and $D_{r}$. Estimating a
+covariance in higher-dimensions can be challenging, however, and isn't
+considered in the reading.
+
+1. The directions $v_{c}^{l}$ can be used to test whether concept $c$'s
+layer-$l$ representation is used when predicting class $k$. First, define the
+sensitivity of class $k$ to changes in layer $l$'s activations,
+   \begin{align}
+   s_{k,l}(x) &= \nabla h_{l,k}\left(g_{l}\left(x\right)\right)
+   \end{align}
+    where $h_{l,k}$ is the $k^{th}$ coordinate of $h_{l}$. The $j^{th}$
+    coordinate of $s_{k,l}\left(x\right)$ tells us how a small perturbation in
+    the $j^{th}$ dimension of sample $x$'s layer-$l$ activation
+    increases/decreases the probability of class $k$.
+
+1. Next we can define the score,
+   \begin{align}
+   T_{c,k} = \frac{\left| \left\{ x_n \in \text{Class } k : s_{k,l}(x_n)^\top v_c^l > 0 \right\} \right|}{\left| \left\{ x_n \in \text{Class } k \right\} \right|}
+   \end{align}
+   which is the proportion of examples where the class $k$ sensitivity is
+   aligned with the concept vector. If this is large, then we believe that the
+   model is indeed using class $c$ in making its class $k$ classification.
+
+1. We can test the significance of the association between $c$ and $k$ by
+estimating concepts $\tilde{v}_{c} ^{l}$ based on $B$ randomly chosen concept
+sets $\left(\tilde{D}_{c}^{b}\right)_{b = 1}^{B}$. The scores
+$\tilde{T}_{c,k}^{b}$ derived from these negative control concepts define a null
+distribution that can be used to compute a $p$-value for the observed $T_{c,k}$,
+   \begin{align}
+    p := \frac{1}{B}\left|\left\{b : T_{c,k} > \tilde{T}_{c,k}\right\}\right|
+   \end{align}
+   Since we need to compute $B$ CAVs, the speedup from using @eq-cav rather than
+   an SVM adds up to a big difference in practice.
+
+## Extensions
+
+1. $^\dagger$ _Multiple Concepts_. The proposal above doesn't allow us to work
+with multiple concepts $v_{1}^{l}, \dots, v_{C}^{l}$ simultaneously. For this,
+@yeh2020 propose an extension. Instead of considering alignment to individual
+concept directions, we proceed in two steps.  First, we learn the relationship
+between the layer $l$ activations and the class $k$ predictions,
+   \begin{align}
+    \hat{w}, \hat{b} := \arg\min_{w, b} \frac{1}{n}\sum_{i = 1}^{n} L\left(f_{k}\left(x_n\right), w^\top g_{l}\left(x_n\right) + b\right).
+   \end{align}
+  where $f_{k}$ is the model class $k$ prediction probabiliyt and $L$ is an
+  appropriate loss function. This is essentially training a probe on using layer
+  $l$'s activations, like in the emotion recognition demo.
+
+1. $^\dagger$ In step two we run another regression to see how the probe's
+coefficients can be expanded in terms of known concepts.
+   \begin{align}
+    \hat{\alpha} = \arg\min_{\alpha \succ 0} \|w - \left[v_{1}^{l} \dots v_{C}^{l}\right]\|_{2}^{2} + \lambda \|\alpha\|_{1}
+   \end{align}
+    The constraint $\alpha \succ 0$ ensures that the weights are nonnegative, so
+    we don't have to worry about concepts cancelling one another out. The
+    penalty $\lambda \|\alpha\|_{1}$ is similar to the lasso and encourages a
+    representation of the probe using only a few concepts.
+
+1. $^\dagger$ A large coefficient $\hat{\alpha}_c$ means that concept
+$v_{c}^{l}$ is important for this layer's contribution to the class $k$
+prediction.  Further, if our approximation error is large, then the model must
+be relying on information that's not captured in the concepts that we curated in
+advance -- we can quantify the extent to which we can't explain the model's
+reasoning.
+
+## Code Example
+
+1. Let's see how concept activation vectors can be used to explain the Google
+LeNet image classification model. Specifically, we'll follow the captum package
+tutorial to see whether the model uses the concept of "stripes" to classifying
+images into the "zebra" class. To define the concepts, we download reference
+images from the Broden catalog. Both the concepts and the images to classify are
+stored in [this zip
+file](https://drive.google.com/file/d/18dDYwSH-OiovV8vDfmu8eMKIVFuweOy9/view?usp=sharing),
+which can be unzipped using
+
+tar -zxvf data.tar.gz
+
+Make sure the results are stored in a directory data/concepts/ relative to this
+notebook (or be prepared to change the paths below). The block below loads
+libraries which are already installed in the conda environment linked above.
+
+   ```{python}
+from pathlib import Path
+from torchvision import transforms
+import PIL
+import captum as cp
+import captum.concept._utils.data_iterator as di
+import glob
+import torch
+import torchvision
+   ```
+
+1. We'll need the helper functions below. These are doing some routine image
+loading and transformation steps and are not specific to concept models in
+particular.
+
+   ```{python}
+def load_tensor(filename):
+    """Load a single image file as a tensor"""
+    img = PIL.Image.open(filename).convert("RGB")
+    return transform(img)
+
+def load_tensors(class_name, root_path="data/concepts/", transform=True):
+    """Load all the images belonging to a class as a tensor. This assumes that
+    each class gets a subdirectory of root_path."""
+    path = Path(root_path) / class_name
+    filenames = glob.glob(str(path / '*.jpg'))
+
+    tensors = []
+    for filename in filenames:
+        img = PIL.Image.open(filename).convert('RGB')
+        tensors.append(transform(img) if transform else img)
+    return tensors
+
+def transform(img):
+    """Transform an image into a form that can be used for classification"""
+    return transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            ),
+        ]
+    )(img)
+   ```
+
+1. `captum` defines a `Concept` class. This is basically a glorified data
+loader, only really different from ordinary data loaders because it is
+associated with a human interpretable label, `name`. The concept objects created
+by the factory below will loop over the images within the `concept_path/name`
+subdirectory.
+
+```{python}
+def assemble_concept(name, id, concept_path):
+    dataset = di.CustomIterableDataset(load_tensor, f"{str(concept_path / name)}/")
+    concept_iter = di.dataset_to_dataloader(dataset)
+    return cp.concept.Concept(id=id, name=name, data_iter=concept_iter)
+```
+
+1. We now define 5 different instances of this Concept object. We are mainly
+interested in the `stripped` concept, because this seems like it should be
+related to the zebra classification. All the other concepts are a form of
+control.  `dotted` is a control where there is some systematic structure in the
+concept, but we don't think it should be related to zebra classification at all.
+The other three are random subsets of imagenet which don't share any systematic
+structure.  These are a somewhat more distant control.
+
+   ```{python}
+concept_path = Path("data/concepts/")
+stripes_concept = assemble_concept("striped", 0, concept_path=concept_path)
+dotted_concept = assemble_concept("dotted", 1, concept_path=concept_path)
+random0_concept = assemble_concept("random500_0", 2, concept_path=concept_path)
+random1_concept = assemble_concept("random500_1", 3, concept_path=concept_path)
+random2_concept = assemble_concept("random500_2", 4, concept_path=concept_path)
+   ```
+
+1. We will explain the Google LeNet model loaded in the block below. We need to
+access activations, but we won't be doing any training, so we call
+`model.eval()`.
+
+   ```{python}
+model = torchvision.models.googlenet(pretrained=True)
+model = model.eval()
+   ```
+
+1. The TCAV implementation in captum has an object-oriented design. We first
+define a generic TCAV explainer associated with a model and set of layers of
+interest (in this cass, a few of the `inception4` layers). We can then apply
+this object to arbitrary concept objects and response classes. Since the object
+is already associated with a model/layers, we no longer need to specify the
+model or layers in each call -- we can just ask whether a concept is related to
+a class, and the TCAV explainer object will know to look it up in the correct
+model. Notice that we are using integrated gradients to define the class'
+sensitivity to perturbations to the model activations. This is different from
+the original TCAV paper, which just ordinary gradients.
+
+   ```{python}
+layers=['inception4c', 'inception4d', 'inception4e']
+
+tcav = cp.concept.TCAV(
+    model=model,
+    layers=layers,
+    layer_attr_method=cp.attr.LayerIntegratedGradients(model, None, multiply_by_inputs=False)
+)
+   ```
+
+1. Finally, we can apply this object to see whether stripes are related to zebra
+classification. Our first version defines the concept direction by classifying
+stripes images vs. random imagenet images. Here, 340 is the label for the zebra
+class in imagenet. n_steps refers to the number of steps in the integrated
+gradients approximation.
+
+   ```{python}
+classification_data = [[stripes_concept, random0_concept]]
+zebra_images = load_tensors('zebra', transform=False)
+zebra_tensors = torch.stack([transform(img) for img in zebra_images])
+
+response_id = 340
+tcav_scores = tcav.interpret(
+    inputs=zebra_tensors,
+    experimental_sets=classification_data,
+    n_steps=5,
+    target=response_id
+)
+   ```
+
+1. The `sign_count` output below is the test statistic introduced in our notes.
+Values close to one mean that the class gradients are almost always in the same
+half space as the concept activation direction . We see that the striped class
+is close to 1 while the random class is always less than 0.15.
+
+   ```{python}
+tcav_scores
+   ```
+
+1. The blocks below repeat this analysis with the dotted rather than random
+control. Again, we see that the striped class defines as concept activation
+direction that is much more relevant to zebra class prediction.
+
+   ```{python}
+classification_data = [[stripes_concept, dotted_concept]]
+
+tcav_scores = tcav.interpret(
+    inputs=zebra_tensors,
+    experimental_sets=classification_data,
+    n_steps=5,
+    target=response_id
+)
+
+tcav_scores
+   ```
