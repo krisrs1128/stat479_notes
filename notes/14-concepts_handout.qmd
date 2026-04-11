@@ -8,6 +8,7 @@ format:
     embed-resources: true
     html-math-method: mathjax
     fig-align: center
+    code-overflow: wrap
 execute:
     echo: true
     message: false
@@ -37,7 +38,7 @@ $$
 </style>
 
 ```{r}
-#| label: setup
+#| label: fig-setup
 #| echo: false
 library(tidyverse)
 library(reticulate)
@@ -46,12 +47,12 @@ set.seed(2026)
 ```
 
 ```{r}
-#| label: python-setup
+#| label: fig-pysetup
 #| echo: false
 # includes the SHAP package. Can install it using,
 # > conda env create -f stat479_week13.yaml
 # where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13.yaml
-use_condaenv("stat479_week13")
+use_condaenv("stat479_week13_demo")
 ```
 
 _[Readings]()_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/14-concepts_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week14.yaml)_
@@ -242,14 +243,16 @@ images from the Broden catalog. Both the concepts and the images to classify are
 stored in [this zip
 file](https://drive.google.com/file/d/18dDYwSH-OiovV8vDfmu8eMKIVFuweOy9/view?usp=sharing),
 which can be unzipped using
-
+   ```
 tar -zxvf data.tar.gz
-
-Make sure the results are stored in a directory data/concepts/ relative to this
-notebook (or be prepared to change the paths below). The block below loads
-libraries which are already installed in the conda environment linked above.
+   ```
+   Make sure the results are stored in a directory data/concepts/ relative to
+   this notebook (or be prepared to change the paths below). The block below
+   loads libraries which are already installed in the conda environment linked
+   above.
 
    ```{python}
+   #| label: fig-imports
 from pathlib import Path
 from torchvision import transforms
 import PIL
@@ -260,40 +263,13 @@ import torch
 import torchvision
    ```
 
-1. We'll need the helper functions below. These are doing some routine image
-loading and transformation steps and are not specific to concept models in
+1. We'll need the helper functions imported below. These are doing some routine
+image loading and transformation steps and are not specific to concept models in
 particular.
 
    ```{python}
-def load_tensor(filename):
-    """Load a single image file as a tensor"""
-    img = PIL.Image.open(filename).convert("RGB")
-    return transform(img)
-
-def load_tensors(class_name, root_path="data/concepts/", transform=True):
-    """Load all the images belonging to a class as a tensor. This assumes that
-    each class gets a subdirectory of root_path."""
-    path = Path(root_path) / class_name
-    filenames = glob.glob(str(path / '*.jpg'))
-
-    tensors = []
-    for filename in filenames:
-        img = PIL.Image.open(filename).convert('RGB')
-        tensors.append(transform(img) if transform else img)
-    return tensors
-
-def transform(img):
-    """Transform an image into a form that can be used for classification"""
-    return transforms.Compose(
-        [
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-            ),
-        ]
-    )(img)
+#| label: load-helpers
+import tcav_helpers as helpers
    ```
 
 1. `captum` defines a `Concept` class. This is basically a glorified data
@@ -301,16 +277,35 @@ loader, only really different from ordinary data loaders because it is
 associated with a human interpretable label, `name`. The concept objects created
 by the factory below will loop over the images within the `concept_path/name`
 subdirectory.
+   ```{python}
+   #| label: assemble-helper
+from pathlib import Path
+import captum.concept._utils.data_iterator as di
 
-```{python}
 def assemble_concept(name, id, concept_path):
-    dataset = di.CustomIterableDataset(load_tensor, f"{str(concept_path / name)}/")
+    """Create a Concept object for captum TCAV analysis.
+
+    Parameters
+    ----------
+    name : str
+        Name of the concept (used as subdirectory name)
+    id : int
+        Unique identifier for the concept
+    concept_path : Path
+        Path to the directory containing concept subdirectories
+
+    Returns
+    -------
+    cp.concept.Concept
+        A captum Concept object with the specified name and data
+    """
+    dataset = di.CustomIterableDataset(helpers.load_tensor, f"{str(concept_path / name)}/")
     concept_iter = di.dataset_to_dataloader(dataset)
     return cp.concept.Concept(id=id, name=name, data_iter=concept_iter)
-```
+   ```
 
 1. We now define 5 different instances of this Concept object. We are mainly
-interested in the `stripped` concept, because this seems like it should be
+interested in the `striped` concept, because this seems like it should be
 related to the zebra classification. All the other concepts are a form of
 control.  `dotted` is a control where there is some systematic structure in the
 concept, but we don't think it should be related to zebra classification at all.
@@ -318,6 +313,7 @@ The other three are random subsets of imagenet which don't share any systematic
 structure.  These are a somewhat more distant control.
 
    ```{python}
+   #| label: fig-concepts
 concept_path = Path("data/concepts/")
 stripes_concept = assemble_concept("striped", 0, concept_path=concept_path)
 dotted_concept = assemble_concept("dotted", 1, concept_path=concept_path)
@@ -331,6 +327,7 @@ access activations, but we won't be doing any training, so we call
 `model.eval()`.
 
    ```{python}
+   #| label: fig-model
 model = torchvision.models.googlenet(pretrained=True)
 model = model.eval()
    ```
@@ -347,6 +344,9 @@ sensitivity to perturbations to the model activations. This is different from
 the original TCAV paper, which just ordinary gradients.
 
    ```{python}
+#| label: fig-tcav
+
+import captum as cp
 layers=['inception4c', 'inception4d', 'inception4e']
 
 tcav = cp.concept.TCAV(
@@ -359,13 +359,16 @@ tcav = cp.concept.TCAV(
 1. Finally, we can apply this object to see whether stripes are related to zebra
 classification. Our first version defines the concept direction by classifying
 stripes images vs. random imagenet images. Here, 340 is the label for the zebra
-class in imagenet. n_steps refers to the number of steps in the integrated
+class in imagenet. `n_steps` refers to the number of steps in the integrated
 gradients approximation.
 
    ```{python}
+   #| label: fig-stripes-random
+import torch
+
 classification_data = [[stripes_concept, random0_concept]]
-zebra_images = load_tensors('zebra', transform=False)
-zebra_tensors = torch.stack([transform(img) for img in zebra_images])
+zebra_images = helpers.load_tensors('zebra', transform_flag=False)
+zebra_tensors = torch.stack([helpers.transform(img) for img in zebra_images])
 
 response_id = 340
 tcav_scores = tcav.interpret(
@@ -379,10 +382,13 @@ tcav_scores = tcav.interpret(
 1. The `sign_count` output below is the test statistic introduced in our notes.
 Values close to one mean that the class gradients are almost always in the same
 half space as the concept activation direction . We see that the striped class
-is close to 1 while the random class is always less than 0.15.
+is generally close to 1.
 
    ```{python}
-tcav_scores
+   #| label: fig-scores-random
+   #| echo: false
+import pprint
+print(pprint.pformat(tcav_scores))
    ```
 
 1. The blocks below repeat this analysis with the dotted rather than random
@@ -390,6 +396,7 @@ control. Again, we see that the striped class defines as concept activation
 direction that is much more relevant to zebra class prediction.
 
    ```{python}
+   #| label: fig-stripes-dotted
 classification_data = [[stripes_concept, dotted_concept]]
 
 tcav_scores = tcav.interpret(
@@ -398,6 +405,9 @@ tcav_scores = tcav.interpret(
     n_steps=5,
     target=response_id
 )
-
-tcav_scores
+   ```
+   ```{python}
+   #| label: tcav-print
+   #| echo: false
+print(pprint.pformat(tcav_scores))
    ```
