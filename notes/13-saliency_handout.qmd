@@ -129,7 +129,7 @@ This suppresses attributions in the darker regions where $x ^\ast \approx 0$.
 1. *Integrated Gradients*. The gradients of the softmax function vanish when the activations are large. Therefore, a confident model will have $\nabla_x f_{\theta, k}$ near zero even on important pixels. Integrated gradients address this by averaging over a path from a baseline $x_0$ (e.g., a black, all zeros image) to $x^\ast$,
 $$
 E_{\text{IG}}\left(x^*, f_{\theta}\right) = \int \nabla_{x}f_{\theta,k}\left(\alpha x^\ast +
-\left(1 - \alpha\right)x_{0}\right) dx
+\left(1 - \alpha\right)x_{0}\right) d\alpha
 $$
 For intermediate values along this path, the activations are smaller and the
 gradients will not have yet saturated. In practice, we approximate this integral
