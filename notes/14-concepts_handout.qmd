@@ -57,7 +57,7 @@ use_condaenv("stat479_week13_demo")
 
 _[Readings]()_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/14-concepts_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week14.yaml)_
 
-We added background on TCAV tests that could appear in our exams. Items marked
+We added background on TCAV that could appear in our exams. Items marked
 $^{\dagger}$ will not be tested.
 
 ## Setup
@@ -66,37 +66,37 @@ $^{\dagger}$ will not be tested.
 concept when predicting a particular class. Further, localize the use of that
 concept to particular layers within the model.
 
-1. **Requirement**. The abstract concept should be formally input to the
-explanation method. We shouldn't have to "read the tea leaves" to deduce
-concepts after running the explanation method.
+1. **Requirement**. We want a quantitative measure of concept importance in a
+model's prediction. An approach that leaves too much to subjective
+interpretation will not be sufficient.
 
     - Running example: Modern vision models trained on imagenet can accurately
     classify zebra images. Do they use the concept "stripes"?
 
     - We could apply saliency maps to see whether the classification is
     sensitive to the parts of the image with the zebra, but this doesn't tell us
-    whether it's actually using the abstract "stripes" concept. It might have
-    just learned to associate "zebra" with horse-like animals in african
-    landscapes.
+    whether it's actually using the abstract "stripes" concept.
 
-1. **Approach.** Require the user to specify the abstract concept $c$ through a
-curated set of examples $D_{c} = \{x_{n}\}_{n = 1}^{N_{c}}$. Given these
-examples, learn a _concept activation vector_ $v_{c}^{l}$ representing concept
-$c$ in layer $l$'s activation space. Test whether $v_{c}^{l}$ is relevant to
-predicting class $k$.
+   ![We recognize the stripes concept in both images, but does our model?](figures/Common_zebra_1.jpg){width=40%}
+   ![](figures/green-vibrant-tropical-leaves-with-detailed-stripes-pattern.jpg){width=30%}
 
-    - In the zebra example, $k$ is the class "zebra", $c$ is the concept
-    "stripes", and $D_{c}$ would be images with stripes more generally (e.g.,
-    tigers, flags, candy canes, ...)
+1. **Approach.** Require the user to specify the abstract concept through a
+curated set of examples. Given these examples, learn a _concept activation
+vector_ (CAV) representing the concept in a user-specified layer's activation
+space and derive a test to see whether the direction is relevant for
+classification into the class of interest.
 
 ## Motivation
 
-1. _Formalization_. We motivated deep learning by hypothesizing that deep layers
-captured more complex, meaningful concepts. Our own examples suggested gave some
-evidence for this (e.g., the emotion probing experiment), and the literature
-more broadly supports this hypothesis. Nonetheless, for real-world applications,
-we haven't seen any way to turn this heuristic into a precise method for
-evaluating or finding concepts in our own data and models.
+1. _Quantitative Concept Importance_. We motivated deep learning by
+hypothesizing that deep layers captured more complex, meaningful concepts. Our
+own examples suggested gave some evidence for this (e.g., the emotion probing
+experiment). Nonetheless, we haven't seen any way to turn this heuristic into a
+precise, quantitative method for evaluating or finding concepts in our own data
+and models.
+
+   - Bias: Whan a model classifies an image as "Programmer," did it use the
+   "Gender" concept? We want a quantitative measure to support formal auditing.
 
 1. _Shared language_. A more philosophical motivation is that finding
 representations that are shared by both people and machine learning models would
@@ -118,38 +118,56 @@ allowed photoshop-like manipulation using representations of concepts like
 ## Concept Vectors
 
 1. _Notation_. We divide the model $f$ at layer $l$, writing it as $f = h_{l}
-\circ g_{l}$. $g_l$ maps an input $x$ to layer $l$'s activations, while $h_{l}$
-transforms those intermediate activations to the model's final predictions. We
-require sets of concept-relevant and random reference images^[For concreteness,
-we'll discuss image concepts, but the method applies to other modalities as
-well.], denoted $D_{c}$ and $D_{r}$, respectively. We also set $\mathcal{D} =
-D_{c} \cup D_{r}$ and $N_{c}, N_{r}, N$ to be the sizes of $D_{c}$, $D_{r}$, and
-$\mathcal{D}$, respectively.
+\circ g_{l}$. The function $g_l$ maps the input $x$ to layer $l$'s activations,
+while $h_{l}$ transforms those intermediate activations to the model's final
+predictions.
+
+   ![The original model $f$.](figures/concepts_overall_model.png){width=60%}
+
+   ![The model $f$ split at layer $l$.](figures/concepts_split_model.png){width=60%}
+
+   The class of interest is $k$. We also require sets of concept-relevant and
+   random reference images^[For concreteness, we'll discuss image concepts, but
+   the method applies to other modalities as well.], denoted $\mathcal{D}_{c}$
+   and $\mathcal{D}_{r}$, respectively. We also set $\mathcal{D} =
+   \mathcal{D}_{c} \cup \mathcal{D}_{r}$ and $N_{c}, N_{r}, N$ to be the sizes
+   of $\mathcal{D}_{c}$, $\mathcal{D}_{r}$, and $\mathcal{D}$, respectively.
+
+   - In the zebra example, $k$ is the class "zebra", $c$ is the concept
+   "stripes", and $\mathcal{D}_{c}$ would be images with stripes more generally (e.g.,
+    tigers, flags, candy canes, ...)
+
+   ![We provide examples $\mathcal{D}_{c}$ to encapsulate what we mean by a concept.](figures/concepts_step1.png){width=70%}
 
 1. Geometrically, if a model layer has "learned" concept $c$, then we expect
 images representing that concept to all be relatively more close together than
-the random references images.
+the random references images.  Conversely, if the model is "unaware" of this
+concept, then it should be scattered in a way similar to the random images.
 
-   Conversely, if the model is "unaware" of this concept, then it should be
-   scattered in a way similar to the random images.
+   ![If a concept is learned by a layer, then it is concentrated in a particular region of its activation space.](figures/concepts_model_learned.png){width=75%}
+
+   _Exercise: In the motivating example, the colors below correspond to which option below?_
+      - _Orange $\to$ random images, Blue $\to$ zebra images_
+      - _Orange $\to$ stripes images, Blue $\to$ zebra images_
+      - _Orange $\to$ zebra images, Blue $\to$ stripes images_
+      - _Orange $\to$ random images, Blue $\to$ stripes images_
 
 1. To make this intuition precise, write the average layer-$l$ activation across
-samples in $\mathcal{D}$ and $D_{c}$ as,
+samples in $\mathcal{D}$ and $\mathcal{D}_{c}$ as,
    \begin{align}
-   \hat{\mu}_{\mathcal{D}} := \frac{1}{N} \sum_{x \in \mathcal{D}} g_{l}\left(x\right) \qquad \hat{\mu}_{c} := \frac{1}{N_{c}}\sum_{x \in D_{c}} g_{l}\left(x\right)
+   \hat{\mu}_{\mathcal{D}} := \frac{1}{N} \sum_{x \in \mathcal{D}} g_{l}\left(x\right) \qquad \hat{\mu}_{c} := \frac{1}{N_{c}}\sum_{x \in \mathcal{D}_{c}} g_{l}\left(x\right)
    \end{align}
    and define the _concept activation vector_ (CAV) $v_{c}^{l}$ as the unit
    vector,
    $$
     v_{c}^{l} \propto \hat{\mu}_{c} - \hat{\mu}_{\mathcal{D}}
-   $$ {eq:cav}
+   $$ {#eq-cav}
 
-1. $^\dagger$ This method is an example of research leading to important
-simplifications. The original approach to CAV defined $v_{c}^{l}$ using support
-vector machines (SVM) trained to distinguish between $D_{c}$ and $D_{r}$. This
-could be computationally expensive, and @niebling argue that the much faster
-difference-in-means approach above gives comparable results as the original SVM
-approach.
+1. The original approach to CAV @pmlr-v80-kim18d defined $v_{c}^{l}$
+using support vector machines (SVM) trained to distinguish between
+$\mathcal{D}_{c}$ and $\mathcal{D}_{r}$. This could be computationally
+expensive, and @niebling2025 argue that the much faster difference-in-means
+approach above gives comparable results as the original SVM approach.
 
 1. Even though this approach bypasses SVM training, it is actually quite related
 to a different classification algorithm, Linear Discriminant Analysis.
@@ -157,8 +175,8 @@ Specifically, suppose that the activations had been drawn from a mixture of two
 Gaussians,
    \begin{align}
    g_{l}\left(x_{i}\right) \sim \begin{cases}
-   \mathcal{N}\left(\mu_c, \Sigma\right) \text{ if } x \in D_{c} \\
-   \mathcal{N}\left(\mu_{r}, \Sigma\right) \text{ if } x \in D_{r}
+   \mathcal{N}\left(\mu_c, \Sigma\right) \text{ if } x \in \mathcal{D}_{c} \\
+   \mathcal{N}\left(\mu_{r}, \Sigma\right) \text{ if } x \in \mathcal{D}_{r}
    \end{cases}.
    \end{align}
   Then, the vector is $\Sigma^{-1}\left(\mu_{c} - \mu_{r}\right)$ is called the
@@ -166,9 +184,11 @@ Gaussians,
   boundary. The relative sizes $N_c$ and $N_r$ translate the decision boundary
   but do not change its orientation.
 
+   ![The inverse covariance $\Sigma^{-1}$ tilts the decision boundary to better separate the classes.](figures/concepts_lda_intuition.png){width=70%}
+
 1. In the case that $\Sigma = I$, the discriminant vector is the same as the CAV
 in @eq-cav. In principle, we could estimate $\Sigma$ that is different from $I$,
-and we could even allow it to differ across $D_{c}$ and $D_{r}$. Estimating a
+and we could even allow it to differ across $\mathcal{D}_{c}$ and $\mathcal{D}_{r}$. Estimating a
 covariance in higher-dimensions can be challenging, however, and isn't
 considered in the reading.
 
@@ -179,9 +199,17 @@ sensitivity of class $k$ to changes in layer $l$'s activations,
    s_{k,l}(x) &= \nabla h_{l,k}\left(g_{l}\left(x\right)\right)
    \end{align}
     where $h_{l,k}$ is the $k^{th}$ coordinate of $h_{l}$. The $j^{th}$
-    coordinate of $s_{k,l}\left(x\right)$ tells us how a small perturbation in
+    coordinate of $s_{k,l}\left(x\right)$ tells us how a perturbation in
     the $j^{th}$ dimension of sample $x$'s layer-$l$ activation
     increases/decreases the probability of class $k$.
+
+   ![Perturbing sample $x_n$ in the direction $s_{k,l}\left(x_n\right)$ increases $x_n$'s predicted probability for class $k$.](figures/score_definition.png){width=65%}
+
+   _Exercise: In the motivating example, the green subset corresponds to which of the below?_
+      - _Images from the zebra class._
+      - _Random reference images $\mathcal{D}_{r}$._
+      - _Images representing the concept $\mathcal{D}_{c}$._
+      - _The union of the reference and concept images $\mathcal{D}$._
 
 1. Next we can define the score,
    \begin{align}
@@ -191,16 +219,24 @@ sensitivity of class $k$ to changes in layer $l$'s activations,
    aligned with the concept vector. If this is large, then we believe that the
    model is indeed using class $c$ in making its class $k$ classification.
 
+   ![If many of class $k$'s sensitivities point into the same half-space as the concept vector, then that is evidence that the concept is used to predict class $k$.](figures/score_vs_concept_alignment.png){width=65%}
+
 1. We can test the significance of the association between $c$ and $k$ by
-estimating concepts $\tilde{v}_{c} ^{l}$ based on $B$ randomly chosen concept
-sets $\left(\tilde{D}_{c}^{b}\right)_{b = 1}^{B}$. The scores
-$\tilde{T}_{c,k}^{b}$ derived from these negative control concepts define a null
-distribution that can be used to compute a $p$-value for the observed $T_{c,k}$,
+estimating concepts $\tilde{v}_{c,b}^{l}$ based on $B$ randomly chosen concept
+sets $\left(\widetilde{\mathcal{D}}_{c}^{b}\right)_{b = 1}^{B}$.
+
+   ![As a negative control, we define concept vectors using random control subsets.](figures/random_baselines.png){width=65%}
+
+  The scores $\tilde{T}_{c,k}^{b}$ derived from these negative control concepts
+  define a null distribution that can be used to compute a $p$-value for the
+  observed $T_{c,k}$,
    \begin{align}
-    p := \frac{1}{B}\left|\left\{b : T_{c,k} > \tilde{T}_{c,k}\right\}\right|
+    p := \frac{1}{B}\left|\left\{b : T_{c,k} > \tilde{T}_{c,k}^{b}\right\}\right|
    \end{align}
    Since we need to compute $B$ CAVs, the speedup from using @eq-cav rather than
    an SVM adds up to a big difference in practice.
+
+   ![The test statistics derived from the control concepts can be used to define a $p$-value.](figures/concepts_null_distribution.png){width=40%}
 
 ## Extensions
 
@@ -372,8 +408,8 @@ zebra_tensors = torch.stack([helpers.transform(img) for img in zebra_images])
 
 response_id = 340
 tcav_scores = tcav.interpret(
-    inputs=zebra_tensors,
-    experimental_sets=classification_data,
+    inputs=zebra_tensors[:4],
+    experimental_sets=classification_data[:4],
     n_steps=5,
     target=response_id
 )
@@ -400,8 +436,8 @@ direction that is much more relevant to zebra class prediction.
 classification_data = [[stripes_concept, dotted_concept]]
 
 tcav_scores = tcav.interpret(
-    inputs=zebra_tensors,
-    experimental_sets=classification_data,
+    inputs=zebra_tensors[:4],
+    experimental_sets=classification_data[:4],
     n_steps=5,
     target=response_id
 )
