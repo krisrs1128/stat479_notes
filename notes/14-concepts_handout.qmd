@@ -55,7 +55,7 @@ set.seed(2026)
 use_condaenv("stat479_week13_demo")
 ```
 
-_[Readings]()_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/14-concepts_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week14.yaml)_
+_[Readings](https://proceedings.mlr.press/v267/schmalwasser25a.html)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/14-concepts_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13_demo.yaml)_
 
 Items marked $^{\dagger}$ will not be tested.
 
@@ -67,7 +67,7 @@ uses an abstract concept when predicting a particular class.
     - Running example: Vision models trained on imagenet can accurately classify
     zebra images. Do they use the concept "stripes"?  Saliency maps highlight
     which pixels matter but can't tell whether it's actually using abstract
-    concepts like "stripes.""
+    concepts like "stripes."
 
       ::: {#fig-stripes-examples}
       ::: {.columns}
