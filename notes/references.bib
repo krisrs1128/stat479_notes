@@ -452,3 +452,64 @@ keywords = {interpretability, quasi-Monte Carlo, Shapley values}
   year = {2024},
   month = jul
 }
+
+@InProceedings{pmlr-v80-kim18d,
+  title = 	 {Interpretability Beyond Feature Attribution: Quantitative Testing with Concept Activation Vectors ({TCAV})},
+  author =       {Kim, Been and Wattenberg, Martin and Gilmer, Justin and Cai, Carrie and Wexler, James and Viegas, Fernanda and sayres, Rory},
+  booktitle = 	 {Proceedings of the 35th International Conference on Machine Learning},
+  pages = 	 {2668--2677},
+  year = 	 {2018},
+  editor = 	 {Dy, Jennifer and Krause, Andreas},
+  volume = 	 {80},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {10--15 Jul},
+  publisher =    {PMLR},
+  pdf = 	 {http://proceedings.mlr.press/v80/kim18d/kim18d.pdf},
+  url = 	 {https://proceedings.mlr.press/v80/kim18d.html},
+  abstract = 	 {The interpretation of deep learning models is a challenge due to their size, complexity, and often opaque internal state. In addition, many systems, such as image classifiers, operate on low-level features rather than high-level concepts. To address these challenges, we introduce Concept Activation Vectors (CAVs), which provide an interpretation of a neural net’s internal state in terms of human-friendly concepts. The key idea is to view the high-dimensional internal state of a neural net as an aid, not an obstacle. We show how to use CAVs as part of a technique, Testing with CAVs (TCAV), that uses directional derivatives to quantify the degree to which a user-defined concept is important to a classification result–for example, how sensitive a prediction of “zebra” is to the presence of stripes. Using the domain of image classification as a testing ground, we describe how CAVs may be used to explore hypotheses and generate insights for a standard image classification network as well as a medical application.}
+}
+
+
+@InProceedings{niebling2025,
+  title = 	 {{F}ast{CAV}: Efficient Computation of Concept Activation Vectors for Explaining Deep Neural Networks},
+  author =       {Schmalwasser, Laines and Penzel, Niklas and Denzler, Joachim and Niebling, Julia},
+  booktitle = 	 {Proceedings of the 42nd International Conference on Machine Learning},
+  pages = 	 {53316--53342},
+  year = 	 {2025},
+  editor = 	 {Singh, Aarti and Fazel, Maryam and Hsu, Daniel and Lacoste-Julien, Simon and Berkenkamp, Felix and Maharaj, Tegan and Wagstaff, Kiri and Zhu, Jerry},
+  volume = 	 {267},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {13--19 Jul},
+  publisher =    {PMLR},
+  pdf = 	 {https://raw.githubusercontent.com/mlresearch/v267/main/assets/schmalwasser25a/schmalwasser25a.pdf},
+  url = 	 {https://proceedings.mlr.press/v267/schmalwasser25a.html},
+  abstract = 	 {Concepts such as objects, patterns, and shapes are how humans understand the world. Building on this intuition, concept-based explainability methods aim to study representations learned by deep neural networks in relation to human-understandable concepts. Here, Concept Activation Vectors (CAVs) are an important tool and can identify whether a model learned a concept or not. However, the computational cost and time requirements of existing CAV computation pose a significant challenge, particularly in large-scale, high-dimensional architectures. To address this limitation, we introduce FastCAV, a novel approach that accelerates the extraction of CAVs by up to 63.6$\times$ (on average 46.4$\times$). We provide a theoretical foundation for our approach and give concrete assumptions under which it is equivalent to established SVM-based methods. Our empirical results demonstrate that CAVs calculated with FastCAV maintain similar performance while being more efficient and stable. In downstream applications, i.e., concept-based explanation methods, we show that FastCAV can act as a replacement leading to equivalent insights. Hence, our approach enables previously infeasible investigations of deep models, which we demonstrate by tracking the evolution of concepts during model training.}
+}
+
+
+@inproceedings{yeh2020,
+author = {Yeh, Chih-Kuan and Kim, Been and Arik, Sercan \"{O}. and Li, Chun-Liang and Pfister, Tomas and Ravikumar, Pradeep},
+title = {On completeness-aware concept-based explanations in deep neural networks},
+year = {2020},
+isbn = {9781713829546},
+publisher = {Curran Associates Inc.},
+address = {Red Hook, NY, USA},
+abstract = {Human explanations of high-level decisions are often expressed in terms of key concepts the decisions are based on. In this paper, we study such concept-based explainability for Deep Neural Networks (DNNs). First, we define the notion of completeness, which quantifies how sufficient a particular set of concepts is in explaining a model's prediction behavior based on the assumption that complete concept scores are sufficient statistics of the model prediction. Next, we propose a concept discovery method that aims to infer a complete set of concepts that are additionally encouraged to be interpretable, which addresses the limitations of existing methods on concept explanations. To define an importance score for each discovered concept, we adapt game-theoretic notions to aggregate over sets and propose ConceptSHAP. Via proposed metrics and user studies, on a synthetic dataset with apriori-known concept explanations, as well as on real-world image and language datasets, we validate the effectiveness of our method in finding concepts that are both complete in explaining the decisions and interpretable.1},
+booktitle = {Proceedings of the 34th International Conference on Neural Information Processing Systems},
+articleno = {1726},
+numpages = {12},
+location = {Vancouver, BC, Canada},
+series = {NIPS '20}
+}
+
+@inproceedings{Ramaswamy2023,
+  title = {Overlooked Factors in Concept-Based Explanations: Dataset Choice,  Concept Learnability,  and Human Capability},
+  url = {http://dx.doi.org/10.1109/CVPR52729.2023.01052},
+  DOI = {10.1109/cvpr52729.2023.01052},
+  booktitle = {2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  publisher = {IEEE},
+  author = {Ramaswamy,  Vikram V. and Kim,  Sunnie S. Y. and Fong,  Ruth and Russakovsky,  Olga},
+  year = {2023},
+  month = jun,
+  pages = {10932–10941}
+}

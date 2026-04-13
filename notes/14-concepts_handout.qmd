@@ -77,8 +77,20 @@ interpretation will not be sufficient.
     sensitive to the parts of the image with the zebra, but this doesn't tell us
     whether it's actually using the abstract "stripes" concept.
 
-   ![We recognize the stripes concept in both images, but does our model?](figures/Common_zebra_1.jpg){width=40%}
-   ![](figures/green-vibrant-tropical-leaves-with-detailed-stripes-pattern.jpg){width=30%}
+      ::: {#fig-stripes-examples}
+      ::: {.columns}
+      ::: {.column width="37%"}
+      ![](figures/Common_zebra_1.jpg){width=100%}
+      :::
+      ::: {.column width="6%"}
+
+      :::
+      ::: {.column width="30%"}
+      ![](figures/green-vibrant-tropical-leaves-with-detailed-stripes-pattern.jpg){width=100%}
+      :::
+      :::
+      We recognize the stripes concept in both images, but does our model?
+      :::
 
 1. **Approach.** Require the user to specify the abstract concept through a
 curated set of examples. Given these examples, learn a _concept activation
@@ -95,7 +107,7 @@ experiment). Nonetheless, we haven't seen any way to turn this heuristic into a
 precise, quantitative method for evaluating or finding concepts in our own data
 and models.
 
-   - Bias: Whan a model classifies an image as "Programmer," did it use the
+   - Bias: When a model classifies an image as "Programmer," did it use the
    "Gender" concept? We want a quantitative measure to support formal auditing.
 
 1. _Shared language_. A more philosophical motivation is that finding
@@ -157,11 +169,15 @@ samples in $\mathcal{D}$ and $\mathcal{D}_{c}$ as,
    \begin{align}
    \hat{\mu}_{\mathcal{D}} := \frac{1}{N} \sum_{x \in \mathcal{D}} g_{l}\left(x\right) \qquad \hat{\mu}_{c} := \frac{1}{N_{c}}\sum_{x \in \mathcal{D}_{c}} g_{l}\left(x\right)
    \end{align}
-   and define the _concept activation vector_ (CAV) $v_{c}^{l}$ as the unit
-   vector,
+   and define the _concept activation vector_ (CAV) $v_{c}^{l}$ as,
    $$
     v_{c}^{l} \propto \hat{\mu}_{c} - \hat{\mu}_{\mathcal{D}}
    $$ {#eq-cav}
+   with length normalized so that $\|v_{c}^{l}\|_{2} = 1$.
+
+   ![](figures/mu_definitions_concepts.png)
+
+   _Exercise: Write pseudocode for learning the FastCAV concept vector $v_{c}^{l}$ Clearly specify the pseudocode inputs._
 
 1. The original approach to CAV @pmlr-v80-kim18d defined $v_{c}^{l}$
 using support vector machines (SVM) trained to distinguish between
@@ -179,7 +195,7 @@ Gaussians,
    \mathcal{N}\left(\mu_{r}, \Sigma\right) \text{ if } x \in \mathcal{D}_{r}
    \end{cases}.
    \end{align}
-  Then, the vector is $\Sigma^{-1}\left(\mu_{c} - \mu_{r}\right)$ is called the
+  Then, the vector $\Sigma^{-1}\left(\mu_{c} - \mu_{r}\right)$ is called the
   discriminant vector, and it is orthogonal to the classification decision
   boundary. The relative sizes $N_c$ and $N_r$ translate the decision boundary
   but do not change its orientation.
@@ -221,22 +237,63 @@ sensitivity of class $k$ to changes in layer $l$'s activations,
 
    ![If many of class $k$'s sensitivities point into the same half-space as the concept vector, then that is evidence that the concept is used to predict class $k$.](figures/score_vs_concept_alignment.png){width=65%}
 
+   _Exercise: If the angle between $s_{k,l}\left(x_n\right)$ and $v_{c}^{l}$ is 110 degrees, does this specific image contribute a 1 or a 0 to the numerator of the TCAV score_
+
 1. We can test the significance of the association between $c$ and $k$ by
 estimating concepts $\tilde{v}_{c,b}^{l}$ based on $B$ randomly chosen concept
 sets $\left(\widetilde{\mathcal{D}}_{c}^{b}\right)_{b = 1}^{B}$.
 
    ![As a negative control, we define concept vectors using random control subsets.](figures/random_baselines.png){width=65%}
 
-  The scores $\tilde{T}_{c,k}^{b}$ derived from these negative control concepts
-  define a null distribution that can be used to compute a $p$-value for the
-  observed $T_{c,k}$,
+    The scores $\tilde{T}_{c,k}^{b}$ derived from these negative control
+    concepts define a null distribution that can be used to compute a $p$-value
+    for the observed $T_{c,k}$,
    \begin{align}
-    p := \frac{1}{B}\left|\left\{b : T_{c,k} > \tilde{T}_{c,k}^{b}\right\}\right|
+    p := \frac{1}{B}\left|\left\{b : \tilde{T}_{c,k}^{b} > T_{c,k}\right\}\right|
    \end{align}
    Since we need to compute $B$ CAVs, the speedup from using @eq-cav rather than
    an SVM adds up to a big difference in practice.
 
    ![The test statistics derived from the control concepts can be used to define a $p$-value.](figures/concepts_null_distribution.png){width=40%}
+
+1. The TCAV test is summarized below. Given the concept vector $v_{c}^{l}$, we
+can compute scores $T_{c,k}$ using `T_score`,
+   ```
+   T_score(model M, class k, images X_k, CAV v):
+     (h_l, g_l) = M # split model into post/pre layer l
+     aligned = 0
+     for x in X_k: # images labeled as class k
+       s = ∇_a h_lk(a) at a = g_l(x) # class k sensitivity in activation space
+       if dot(s, v) > 0:
+         aligned += 1
+     return aligned / |X_k|
+   ```
+    Given this function, we can compute a reference distribution with random
+    concepts to get a $p$-value.
+   ```
+   TCAV(M, k, X_k, D_c, D_r, B):
+     # Step 1: TCAV score on real concept
+     v = FastCAV(M, D_c, D_r)
+     T_observed = T_score(M, k, X_k, v)
+
+     # Step 2: null distribution using random concepts
+     D = D_c ∪ D_r
+     T_null = []
+     for b in 1 ... B:
+       D_rand = random_subset(D)
+       v_rand = FastCAV(M, D_rand, D_r)
+       T_null[b] = T_score(M, k, X_k, v_rand)
+
+     p = |{b : T_null[b] >= T_observed}| / B
+     return T_observed, p
+   ```
+
+   _Exercise: @Ramaswamy2023 ran an experiment to see how the choice of $D_{c}$
+   can impact the final results. Specifically, they used two datasets (Ade20K
+   and Pascal) that both gave sets of images representing ceiling, box, etc. The AUCs below give the classification accuracy for distinguishing $D_{c}$ vs. $D_{r}$ using the two choices of concept datasets. The cosine similarities measure the similarity of the learned $v_{c}^{l}$. Comment on the implications of this result._
+
+   ![TCAV experiment from @Ramaswamy2023.](figures/probe_dataset_dependence.png)
+
 
 ## Extensions
 
