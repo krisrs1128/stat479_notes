@@ -106,6 +106,8 @@ plots.
 
    ![@Johnson2016 applied dimensionality reduction to a translation model's activations. Each color is one sentence translated into many languages. The model places sentences with the same meaning next to one another regardless of language.](figures/multilingual_tsne.png)
 
+   ![Dimensionality reduction represents $x_n$ using a lower-dimensional $z_n$.](figures/dim_reduction_sae.png){width=45%}
+
    Unfortunately, this is not so useful at the scale of modern LLMs. The number
    of distinguishable concepts in the training data is much larger than the
    embedding dimension (e.g., the layer in GPT-3 similar to the one studied in
@@ -119,13 +121,16 @@ plots.
    - $z_n \in \mathbb{R}^{K}$: sparse, nonnegative weights giving the
    contribution of feature $k$ to sample $n$.
 
-   ![](figures/expansion_diagram.png)
+   ![The SAE model represents $x_n$ using a higher-dimensional sparse $z_n$.](figures/expansion_diagram.png){width=45%}
 
-1. **Architecture**. The sparse autoencoder (SAE) has two components^[This is not exactly the standard dictionary learning objective, but the differences are minor @Yun2021 @Olshausen1996.],
+1. **Architecture**. The sparse autoencoder (SAE) has two components^[This is not exactly the standard dictionary learning objective, but the differences are minor (@Yun2021 @Olshausen1996).],
 
    - Encoder: $\quad z_n = g(Wx_n + b)$, where $g(u) = u \cdot \mathbf{1}[u > 0]$ is the ReLU.
    - Decoder: $\quad \hat{x}_n = Vz_n + c$.
-   ![](figures/encoder_decoder_matrices.png)
+
+   ![Matrix representation of the encoder.](figures/encoder_matrices.png){width=50%}
+
+   ![Matrix representation of the decoder.](figures/decoder_matrices.png){width=50%}
 
    Each activation $x_n$ is a sparse, nonnegative mixture of learned atoms $v_k$,
    $$
@@ -189,7 +194,9 @@ def sae_loss(x, x_hat, z, decoder, lam):
 Sparse combinations of its atoms can represent geometric structure that no
 $D$-dimensional linear subspace can capture.
 
-   ![](figures/representation_capacity.png)
+   ![Data lying on a low-dimensional subspace](figures/subspace_geometry.png){width=45%}
+
+   ![An overcomplete basis supports more complex data structure.](figures/sae_geometry.png){width=45%}
 
    _Exercise: Compare and contrast the atoms $v_k$ here with the concept vectors $v_c^l$ from the Concept Activation Vectors notes._
 
@@ -212,9 +219,9 @@ torch.manual_seed(479)
 #| label: ground-truth
 from sae_helpers import generate_v_true, generate_z_true
 
+N = 500
 v_true = generate_v_true()
 K_true = v_true.shape[1]
-N = 500
 z_true = generate_z_true(K_true=K_true, N=N)
 X = v_true @ z_true + np.random.randn(2, N) * 0.05  # 2 x N
    ```
@@ -261,3 +268,5 @@ plot_dictionary_recovery(X, v_true, V_learned, K_true=K_true)
 **Feature Survey**
 
 **Steering**
+
+## Code Example
