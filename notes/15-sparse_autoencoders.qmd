@@ -1,0 +1,235 @@
+---
+title: "Sparse Autoencoders"
+author: Kris Sankaran
+date: 2026-04-20
+bibliography: references.bib
+format:
+  html:
+    embed-resources: true
+    html-math-method: mathjax
+    fig-align: center
+    code-overflow: wrap
+execute:
+    echo: true
+    message: false
+    warning: false
+    cache: false
+    eval: true
+---
+
+::: {style="display: none;"}
+$$
+\newcommand{\bs}[1]{\mathbf{#1}}
+\newcommand{\reals}{\mathbb{R}}
+\newcommand{\widebar}[1]{\overline{#1}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\indic}[1]{\mathbb{1}\left\{{#1}\right\}}
+\newcommand{\Earg}[1]{\mathbb{E}\left[{#1}\right]}
+\newcommand{\Esubarg}[2]{\mathbb{E}_{#1}\left[{#2}\right]}
+$$
+:::
+
+<style>
+.purple { color: #7458d1ff; } /* pastel purple */
+.orange { color: #fca020; } /* pastel orange */
+.green { color: #3bbe67ff; } /* pastel green */
+.darkblue { color: #4a9ceaff; } /* pastel dark blue */
+.pink { color: #ee6ec3ff; } /* pastel pink */
+</style>
+
+```{r}
+#| label: fig-setup
+#| echo: false
+library(tidyverse)
+library(reticulate)
+theme_set(theme_classic() + theme(panel.border= element_rect(fill = NA, linewidth = .5)))
+set.seed(2026)
+```
+
+```{r}
+#| label: fig-pysetup
+#| echo: false
+# includes the SHAP package. Can install it using,
+# > conda env create -f stat479_week13_demo.yaml
+# where the yaml file is located at: https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13_demo.yaml
+use_condaenv("stat479_week13_demo")
+```
+
+_[Readings](https://) [Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/15-sparse_autoencoders.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13_demo.yaml)_
+
+Items marked $^{\dagger}$ will not be tested.
+
+## Setup
+
+1. **Goal**. Discover what abstract features a large language model (LLM) $f$
+has learned and use those to "steer" model outputs.
+
+1. **Requirements**.
+
+   - The method should be computationally scalable, because typical LLMs are
+   trained on large datasets and have many parameters.
+
+   - The annotation process should also be scalable, without requiring too much
+   human labeling effort.
+
+1. **Approach.** Learn a "dictionary" of interpretable directions
+$\left(v_k\right)_{k = 1}^{K}$ in a layer's activation space, in the sense that
+any observation activations $x_n$ can be reconstructed using a sparse
+combination of those learned directions,
+   $$
+   x_n \approx \text{intercept} + \sum_{\text{ few } k} z_{nk} v_k
+   $$
+   We will steer the model predictions by increasing or decreasing the
+   contribution of those directions.
+
+1. _Motivation_
+
+   - Concept analysis is confirmatory -- it requires manually-curated examples.
+   We instead want an exploratory approach that helps us find relevant features
+   automatically. Especially important in fairness/AI safety applications, where
+   we might not be sure of problematic features in advance.
+   - LLMs are generative, i.e. they can be used to simulate new data points
+   rather than just being used to make predictions. It's not enough to associate
+   concepts with predictions, we really need to control the generations, adding
+   and removing concepts as needed.
+
+1. _Preview._
+
+   - The techniques in this note will allow us to discover non-obvious features. E.g.,
+     ![One of the features has high score $z_{nk}$ on samples related to the Golden Gate Bridge. It activates across languages and data modalities.](figures/golden_gate.png){width=80%}
+   - We'll be able to use those features to steer model output.
+     ![We'll be able to use those features to "steer" the model output.](figures/golden_gate_steering.png){width=70%}
+
+## Sparse Autoencoder Model
+
+1. **Naive Approach 1 - Individual Neurons.** Some past work tried to describe
+individual neurons by finding the examples that they gave the strongest
+activations for, e.g., some neurons in lower layers act like edge detectors.
+
+   ![Examples of neurons in a CNN that activate whenever they encounter particular edge orientations, from @Zeiler2014.](figures/zeiler_edge_detector.png){width=40%}
+
+   This is not satisfactory in higher-layers, though. Individual neurons play
+   multiple roles depending on their context, a phenomenon that's been called
+   the "superposition hypothesis."
+
+1. **Naive Approach 2 - Dimensionality Reduction.** We could apply a
+dimensionality reduction method to the learned activations and then interpret
+the resulting plots.
+
+   ![@Johnson2016 applied a dimensionality-reduction method to activations from a language translation model. Each color in the left panel corresponds to a single sentence translated into many languages. The analysis shows that the model learns to align sentences with the same meaning regardless of language.](figures/multilingual_tsne.png)
+
+   This is not so useful for understanding activations over larger datasets,
+   like those used in LLM training.  LLMs are trained on wide swaths of the
+   internet, yet their embedding dimensions are comparatively small. The Claude
+   3 analysis from the reading doesn't disclose the dimension of the layer they
+   analyzed, but the comparable layer in GPT-3 has 12K dimensions.  There are
+   more than 12K "concepts" on the internet...
+
+1. **Notation**. The main idea is to expand -- not reduce -- the
+dimensionality of the activation space in a way that disentangles the distinct
+components of the learned representations. To make this precise, we need some notation,
+
+   - $x_n \in \reals^{D}$: The activations of sample $n$ at layer $l$.
+   - $v_1, \dots, v_K$: Underlying features in layer $l$. These are called "atoms" in the dictionary learning literature and we set $K \gg D$.
+   - $z_n \in \reals^{K}$: Mixing the atoms $v_k$ with weights $z_n$
+   should closely approximate $x_n$. We try to make the $z_n$ sparse, so only a
+   few atoms are relevant to any given sample.
+
+   ![](figures/expansion_diagram.png)
+
+1. **Architecture**. The sparse autoencoder (SAE) model relates $x_n$ with $v_k$
+and $z_n$. The form used in the reading is^[This is not exactly the standard
+form of the dictionary learning objective, but we will ignore the (minor)
+differences @Yun2021 @Olshausen1996.].
+   - Encoder
+   \begin{align}
+   z_n = g\left(W x_n + b\right)
+   \end{align}
+    where $g\left(u\right) = u\indic{u > 0}$ is the ReLU function.
+   - Decoder
+   \begin{align}
+   \hat{x}_n = V z_n + c
+   \end{align}
+
+   ![](figures/encoder_decoder_matrices.png)
+
+   _Exercise: In the reading, what choices of $K$ are considered?_
+
+1. Expanding the matrix multiplication in the decoder, we see that,
+\begin{align}
+x_n \approx \hat{x}_n = \text{intercept} + \sum_{k = 1}^{K} z_{nk} v_{k}
+\end{align}
+where we use $v_k$ to represent the $k^{th}$ column of $V$. We summarize $x_n$ as
+a mixture of unobserved features $v_k$, and the nonnegative mixing weights are
+$z_{nk}$.
+
+   _Exercise: What are the dimensionalities of $x_n, \hat{x}_n, z_{nk}$, and $v_k$?_
+
+   _Exercise: Why are the weights $z_{nk}$ nonnegative?_
+
+1. In code, this looks like,
+
+   ```{python}
+class SAE(nn.Module):
+    def __init__(self, D, K):
+        super().__init__()
+        self.encoder = nn.Linear(D, K)
+        self.decoder = nn.Linear(K, D, bias=True)
+
+    def forward(self, x):
+        z = F.relu(self.encoder(x))
+        x_hat = self.decoder(z)
+        return x_hat, z
+   ```
+
+1. We need to learn the parameters $W \in \reals^{K \times D}, V \in \reals^{D
+\times K}, b \in \reals^{K}, c \in \reals^{D}$. We use the objective function,
+
+   \begin{align}
+   \frac{1}{N}\sum_{n = 1}^{N}\left[\|x_n - \hat{x}_n\|_{2}^{2} + \lambda \sum_{k} z_{nk} \|v_k\|_{2}\right].
+   \end{align}
+   Notice that the first term depends on both the encoder and decoder parameters,
+   \begin{align}
+    \|x_n - \hat{x}_n\|_{2}^{2} &= \|x_n - Vz_n - c\|_{2}^{2} \\
+    &= \|x_n - V g\left(W x_n + b\right) - c\|_2^2
+   \end{align}
+
+   In code, this is,
+
+   ```{python}
+def sae_loss(x, x_hat, z, decoder, lambd):
+    recon = F.mse_loss(x, x_hat)
+    col_norms = decoder.weight.norm(dim=0)  # ||v_k||_2 for each k
+    sparsity = (z * col_norms).sum(dim=1).mean()
+    return recon + lambd * sparsity
+   ```
+
+1. It's not obvious, but the penalty is very related to the lasso. Since
+$z_{nk}$ and $\|v_k\|_2$ are always nonnegative, the penalty is equivalent to,
+\begin{align}
+\lambda \sum_{k} \left|\alpha_k\right|
+\end{align}
+where $\alpha_k = z_{nk}\|v_k\|_2$. I.e., this is an $\ell^{1}$ penalty on the
+product between the length of the latent features and the mixing weights. This
+encourages the product to be exactly zero, just like the lasso encouraged
+coordinates $\beta_j = 0$. The consequence is that the sum $\sum_{k} z_{nk}
+v_{k}$ only includes a small number of nonzero $z_{nk}$, despite $K$ being
+large.
+
+1. A basis like $v_1, \dots, v_K$ where $K > D$ is called _overcomplete_.
+Combined with sparsity of $z_{nk}$, this can be used to approximate more complex
+geometric structures than linear dimensionality reduction.
+
+   ![](figures/representation_capacity.png)
+
+   _Exercise: Compare and contrast the $v_k$ in this equation with the concept vectors $v_{c}^{l}$ from the Concept Activation Vectors notes._
+
+   _Exercise: What is the pattern of zeros in $z_{n}$ for the samples labeled $A, B$, and $C$? What is the relationship between the $z_{n}$ for the point labeled $B$ vs. $C$?_
+
+**Scaling Laws**
+
+## Discovery and Control
+
+**Feature Survey**
+
+**Steering**
