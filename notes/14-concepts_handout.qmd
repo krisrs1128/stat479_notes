@@ -55,7 +55,7 @@ set.seed(2026)
 use_condaenv("stat479_week13_demo")
 ```
 
-_[Readings](https://proceedings.mlr.press/v267/schmalwasser25a.html)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/14-concepts_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13_demo.yaml)_
+_[Readings](https://proceedings.mlr.press/v267/schmalwasser25a.html)_, _[Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/14-concepts_handout.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13_demo.yaml)_, _[Helpers](https://github.com/krisrs1128/stat479_notes/blob/master/notes/tcav_helpers.py)_
 
 Items marked $^{\dagger}$ will not be tested.
 
@@ -420,8 +420,8 @@ zebra_tensors = torch.stack([helpers.transform(img) for img in zebra_images])
 
 response_id = 340
 tcav_scores = tcav.interpret(
-    inputs=zebra_tensors[:4],
-    experimental_sets=classification_data[:4],
+    inputs=zebra_tensors,
+    experimental_sets=classification_data,
     n_steps=5,
     target=response_id
 )

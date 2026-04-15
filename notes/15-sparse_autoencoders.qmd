@@ -55,7 +55,7 @@ set.seed(2026)
 use_condaenv("stat479_week13")
 ```
 
-_[Readings (up to "Feature Surveys")](https://transformer-circuits.pub/2024/scaling-monosemanticity/) [Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/15-sparse_autoencoders.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13_demo.yaml)_
+_[Readings (up to "Feature Surveys")](https://transformer-circuits.pub/2024/scaling-monosemanticity/) [Code](https://github.com/krisrs1128/stat479_notes/blob/master/notes/15-sparse_autoencoders.qmd)_,  _[Conda Env](https://github.com/krisrs1128/stat479_notes/blob/master/notes/stat479_week13.yaml)_, _[Helpers](https://github.com/krisrs1128/stat479_notes/blob/master/notes/sae_helpers.py)_
 
 Items marked $^{\dagger}$ will not be tested.
 
