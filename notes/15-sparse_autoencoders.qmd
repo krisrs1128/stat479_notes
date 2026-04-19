@@ -166,7 +166,7 @@ class SAE(nn.Module):
 
    \begin{align}
    \frac{1}{N}\sum_{n = 1}^{N}\left[\|x_n - \hat{x}_n\|_{2}^{2} + \lambda \sum_{k} z_{nk} \|v_k\|_{2}\right].
-   \end{align}
+   \end{align} {#eq:loss}
    Note that the reconstruction term expands,
    \begin{align}
     \|x_n - \hat{x}_n\|_{2}^{2} = \|x_n - Vz_n - c\|_{2}^{2} = \|x_n - V g\left(W x_n + b\right) - c\|_2^2
@@ -261,12 +261,94 @@ plot_dictionary_recovery(X, v_true, V_learned, K_true=K_true)
 
    _Exercise: How would you compare the true and learned $z_{nk}$?_
 
-**Scaling Laws**
+## Scaling Laws
 
-## Discovery and Control
+1. Training SAE's with large $K$ and across large dataset is computationally
+expensive. Holding all other training hyperparameters constant, compute cost $C$
+increases proportionally to $K$ and the number of gradient descent training
+steps $T$, $C = TK$.
 
-**Feature Survey**
+  * For a fixed $C$, how should we allocate budget across $T$ and $K$?
+  * For a proposed increase in $C$, by how much would we expect the training loss @eq-loss to decrease?
 
-**Steering**
+   By sweeping values of $T$ and $K$ for gradually increase compute budgets, we
+   can answer these questions in a way that allows us to plan large $C$ training
+   runs. In the LLM literature, this type of experimental design is called a
+   scaling law analysis.
+
+1. Consider increasing budgets $C_1 < \dots < C_M$. For each $m$, evaluate
+$\{\left(T_m^{l}, K_m^{l}\right)\}_{l = 1}^{L}$ pairs satisfying $C_m = T_m^l
+K_m^l$ (sometimes called the IsoFLOP contour). At this $m$, one choice
+$T_{m}^{l^*}, K_{m}^{l^\ast}$ minimizes the loss @eq-loss. For notational
+convenience, denote this by $T^\ast\left(C_m\right)$, and similarly define
+$K^{\ast}\left(C_m\right)$.
+
+1. Unfortunately, the reading doesn't annotate the axes of the scaling law
+analysis. But we can see how the loss varies across $C_m$ (separate curves) and
+$l$ (points along a single curve).
+
+   ![Loss against compute budget in the scaling law experiments.](figures/sae_scaling_law.png)
+
+1. We can further relate the compute budget to the optimal choice $T^\ast$ and
+$K^\ast$. It turns out that these can be modeled well using a power law curve
+(i.e., linear on a log scale),
+
+  $$
+T^\ast\left(C_m\right) \approx \beta_{0} + \beta_1 C_m \\
+K^\ast\left(C_m\right) \approx \alpha_0 + \alpha_1 C_m
+  $$
+
+   Given a new target compute budget $C$, we fit the SAE using
+   $\hat{T}\left(C\right) = \hat{\beta}_0 + \beta_{1}C$ training steps and
+   $\hat{K}\left(C\right) = \hat{\alpha}_{0} + \hat{\alpha}_{1}C$ features.
+   Note that this approach doesn't guarantee that $C =
+   \hat{T}\left(C)\hat{K}\left(C\right)$. For a way to enforce that constraint,
+   see Approach 3 in @hoffman2024.
+
+   ![Power law relationships for training steps and feature count in the SAE experiments.](figures/scaling_law_allocation.png)
+
+## Autointerpretability
+
+1. It's not possible to manually annotate millions features, so we have to rely
+on automatic interpretability methods instead. The basic procedure is to train
+and evaluate an intermediate explainer model.
+
+1. **Explainer training**.
+
+   - For a feature $k$, randomly sample indices $n$ across quantiles of $z_{nk}
+   | z_{nk} > 0$. Call the stratified sampling result $D^{\text{explain}}$ and
+   gather the associated source texts .
+   - Show the source texts and $z_{nk}$ to an explainer LLM and prompt it to
+   generate a natural language description $d_{k}$ to summarize feature $k$.
+
+1. The reading is vague about what prompts they actually use. But related
+peer-reveiwed papers give details. For example @paulo prompt the explainer LLM
+using,
+
+   ![](figures/paulo_explainer_prompt.png)
+
+   Similarly @simon2024 use the prompt below to automatically generate
+   descriptions for SAE features from a protein language model,
+
+   ![](figures/simon_explainer_prompt.png)
+
+1. **Explainer evaluation**. Gather new samples $D^{\text{eval}}$. Show the
+model the corresponding texts and the descriptions $d_{k}$, and ask it to
+predict $z_{nk}$. The quality of the autointerpretations $d_{k}$ is summarized
+as $\text{Cor}\left(z_{nk}, \hat{z}_{nk}\right)$ for $n \in D^{\text{eval}}$.
+
+For example, the evaluation prompts for the two papers mentioned above are,
+
+  ![]()  ![]()
+
+## Sensitivity, Specificity, and Control
+
+1. The SAE gives us features $k$ and the autointerpretability pipeline gives
+human-understandable $d_k$. We don't know the quality of the learned features
+though.
+
+  - Sensitivity: What
+  - Specificity: What
+
 
 ## Code Example
