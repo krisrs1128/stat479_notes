@@ -428,7 +428,7 @@ $d_k$. Neither tells us whether the features are good.
    token.
    - Compute $z_{nk}$ and let $\mathcal{S} \subset \{1, \dots, K\}$ index the
    largest of them (the reading uses $\left|S\right| = 5$).
-   - Ask a human rater to judge whether any of the $\left{d_{k}\right}_{k \in
+   - Ask a human rater to judge whether any of the $\left(d_{k}\right)_{k \in
    \mathcal{S}}$ are related to $c$
 
 1. We can apply this to finite concept sets (e.g., the boroughs of London or
@@ -521,16 +521,24 @@ model = model.eval()
 ```
 
 1. The block below applies `extract_embeddings` to all the articles we
-downloaded above.
+downloaded above. If it's already been saved, it will load it from the
+`save_path` directory.
 
 ```{python}
 #| label: sae-fineweb-embeddings
-#| eval: false
+import torch
+from pathlib import Path
 from tqdm import tqdm
 
-embeddings = []
-for text in tqdm(texts):
-   embeddings.append(extract_embeddings(text, model, tokenizer).cpu())
+save_path = Path("../data/fineweb_embeddings.pt")
+if save_path.exists():
+    X_tensor = torch.load(save_path, map_location="cpu")
+else:
+    embeddings = []
+    for text in tqdm(texts):
+        embeddings.append(extract_embeddings(text, model, tokenizer).cpu())
+    X_tensor = torch.stack(embeddings).float()
+    torch.save(X_tensor, save_path)
 ```
 
 1. Next fit the SAE defined earlier in the notebook.  The encoder activations
@@ -539,16 +547,14 @@ each $k$.
 
 ```{python}
 #| label: sae-fit-small
-#| eval: false
-K = 250
-X_tensor = torch.stack(embeddings).float()  # N x D
+K = 500
 N, D = X_tensor.shape
 
 sae = SAE(D, K)
 optimizer = torch.optim.Adam(sae.parameters(), lr=1e-3)
-lam = 0.001
+lam = 0.0005
 
-for epoch in tqdm(range(100)):
+for epoch in tqdm(range(1000)):
    x_hat, z = sae(X_tensor)
    loss = sae_loss(X_tensor, x_hat, z, sae.decoder, lam)
    optimizer.zero_grad()
@@ -558,7 +564,7 @@ for epoch in tqdm(range(100)):
 with torch.no_grad():
    _, Z = sae(X_tensor)
 Z = Z.detach().cpu().numpy().T
-print(Z[0])
+print(Z[0].max())
 ```
 
 1. Finally, we can look at articles that have especially high activations on
@@ -567,7 +573,8 @@ related to languages.
 
 ```{python}
 #| label: sae-top-texts
-#| eval: false
-top_ix = np.argsort(Z[0, :])[-10:][::-1]
-[f"{texts[i][:200]}..." for i in top_ix]
+for k in range(10):
+    print(f"\nFeature {k}")
+    top_ix = np.argsort(Z[k])[-10:][::-1]
+    print("\n".join([" ".join(texts[i][:200].split()) + "..." for i in top_ix]))
 ```
