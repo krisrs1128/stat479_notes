@@ -139,7 +139,7 @@ focus is interpretability.
 1. **Attention**. In layer $m$, we want a nonnegative matrix $A^{m} \in
 \reals^{N \times N}$ whose columns sum to one. Column $n$ is viewed as a
 distribution over input tokens $n'$ that are relevant to token $n$. Informally,
-token $n$ attends to token $n'$ according to the weight $A_{nn'}^{m}$.
+token $n$ attends to token $n'$ according to the weight $A_{n'n}^{m}$.
 
 1. If we knew $A^{m}$, we could compute,
 
