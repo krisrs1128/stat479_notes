@@ -119,7 +119,7 @@ identifying which features drive drug effectiveness in one subgroup vs. another.
 ## Game Theory Definitions
 
 1. SHAP is motivated by the credit assignment problem from game theory. Imagine
-agents $\mathcal{D} = \{1, \dots, D\}$ and imagine where any <span
+agents $\mathcal{D} = \{1, \dots, D\}$ where any <span
 class="green">subset $S$</span> earns profit $v(S)$. How much of the total
 profit $v(\mathcal{D})$ should agent $d$ receive?  This share is the **Shapley
 value** $\varphi_{d}(v)$.
@@ -229,10 +229,12 @@ example, $\mathbf{0}\in \reals^{D}$, or the sample mean $\bar{x} \in
    &= f\left(x_{S \cup \{d\}}, x'_{\overline{S \cup \{d\}}}\right) - f\left(x_{S}, x'_{\bar{S}}\right)
    \end{align*}
    $$
-   This is the change in prediction when feature $d$ is included (left) vs.
-   replaced by the baseline (right).
+   This is the change in prediction when feature $d$ is included (top) vs.
+   replaced by the baseline (bottom).
 
    ![](figures/shap_baseline_vector.png){width=50%}
+
+    The figure below represents $C\left(2 \vert 1\right)$ under baseline removal.
 
    ![](figures/shap_baseline_geometry.png){width=90%}
 
@@ -267,15 +269,6 @@ represents $C(2 | 1)$ under marginal removal.
 
    - **Right panel.** The decreasing curve is a cross-section of $f$ along that vertical dashed line (i.e., holding $x_1$ fixed). The pink dashed line marks $x_2$ for the point we want to explain, and the solid horizontal line has $y$-value equal to $f(x)$. The blue dashed lines show the $x_{i2}$ from training samples, and the blue histogram summarizes the resulting values $f(x_1, x_{i2})$. The gap between $f(x)$ and the center of the histogram is $C(2 \mid 1)$.
 
-   - $C(1 \mid 2)$ flips the roles of the two coordinates. Now we replace the first coordinate with training values $x_{i1}$ rather than the second, so the dashed lines would run horizontally (in the $x_1$ direction) instead of vertically, and the cross-section would be taken along $x_2 = x_2$ rather than $x_1 = x_1$.
-   - $C(1 \mid \emptyset)$ involves $v(\{1\}) - v(\emptyset)$. We already have $v(\{1\})$, it is the mean of the blue histogram above. For $v(\emptyset)$, we remove both coordinates, meaning we evaluate $f$ at the original training points without moving them to any dashed line. That is:
-
-   $$
-   v(\emptyset) = \frac{1}{N} \sum_{i} f(x_{i1}, x_{i2})
-   $$
-
-   - $\phi_1$ **vs.** $\phi_2$. We would expect $\phi_2 > \phi_1$ because the contours vary more steeply in the $x_2$ direction. Intuitively, the second coordinate matters more for explaining almost any prediction. More concretely, the analog of the right-hand panel for $C(1 \mid 2)$ would have a flatter cross-section, leading to a smaller gap between $f(x)$ and the histogram mean.
-
    ![](figures/shap_marginal_geometry.png){width=90%}
 
    _Exercise: What would $C\left(1 \vert 2\right)$ look like in this figure? What about $C\left(1 \vert \emptyset\right)$?_
@@ -303,7 +296,7 @@ conditional distributions.
 
 ## Causal Intervention Perspective
 
-1. $^\dagger$ Some researchers [@janzing20a] have argued that point (3) in the
+1. $^\dagger$ Some researchers [@janzing20a] have argued that point (4) in the
 previous section is not actually a problem, and that, from a causality
 perspective, the marginal approach computes the more meaningful expectation.
 

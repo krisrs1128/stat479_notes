@@ -164,8 +164,6 @@ example, for 10 features we could use,
 1. _Adaptive sampling_. The terms $C\left(d \vert S_{m}\right)$ are random
 variables with mean $\varphi_{d}\left(x\right)$.
 
-   (picture of their histograms across $d$)
-
    For features that are irrelevant, the contributions are tightly clustered
    near zero, so even small values of $M$ are enough. Inspired by this
    observation, adaptive sampling tracks the variance of $C(d \mid S_m)$ across
@@ -212,7 +210,7 @@ be characterized through a weighted least squares problem,
 approximation: sample random subsets $S_1, \dots, S_M$ and solve the weighted
 regression on the reduced design. This is "KernelSHAP."
 
-1. Let $z_{md} = \mathbf{1}[d \in s_m]$ be the associated design matrix. the
+1. Let $z_{md} = \mathbf{1}[d \in s_m]$ be the associated design matrix. The
 regression suggests $v(\emptyset) \approx \beta_0$ and
    $$
    v(S_m) - v(\emptyset) \approx \sum_{d = 1}^{D} z_{md}\beta_d.
@@ -224,7 +222,7 @@ regression suggests $v(\emptyset) \approx \beta_0$ and
    We can improve the quality of our approximation by enforcing these
    constraints, substituting $v(\emptyset) = \Esubarg{p(x)}{f(X)} \approx \frac{1}{N}\sum_{i = 1}^{N} f(x_i)$ and $v(\mathcal{D}) = f(x).$
 
-   _Exercise: In fact, the regression objective ensures that $v\left(\emptyset\right) = \beta_0$ and $v(\mathcal{D}) - v(\emptyset) = \Delta$ hold exactly. Can you see why?_
+   _Exercise: In fact, the regression objective ensures that $v\left(\emptyset\right) = \beta_0$ and $v(\mathcal{D}) - v(\emptyset) = \Delta$ hold exactly. Can you see why? (Hint: Consider the weights)_
 
    ![](figures/regression_perspective.png){width=65%}
 
